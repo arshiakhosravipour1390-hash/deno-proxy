@@ -1,38 +1,34 @@
-
-// ============================================================
-// HENDESYAR AI PROXY - DENO
-// ============================================================
-
-// ============================================================
-// API KEYS
-// ============================================================
-
 const GROQ_API_KEY =
     "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";
 
 const OPENROUTER_API_KEY =
     "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";const GROQ_API_KEY = "YOUR_GROQ_API_KEY";
 
+# نسخه نهایی Deno — Groq + OpenRouter
+
+```ts
 // ============================================================
 // HENDESYAR AI PROXY - DENO
 // Groq + OpenRouter ONLY
 // Gemini is NOT handled by Deno.
-// Gemini should be handled through Supabase.
+// ============================================================
+
+// ============================================================
+// API KEYS
+// کلیدها مستقیماً داخل همین فایل قرار می‌گیرند.
 // ============================================================
 
 // ============================================================
 // CONFIG
 // ============================================================
+
 const GROQ_MODEL =
-  Deno.env.get("GROQ_MODEL") ||
   "llama-3.3-70b-versatile";
 
 const OPENROUTER_MODEL =
-  Deno.env.get("OPENROUTER_MODEL") ||
   "openai/gpt-4o-mini";
 
-const PORT =
-  Number(Deno.env.get("PORT") || 8000);
+const PORT = 8000;
 
 // ============================================================
 // CORS
@@ -75,9 +71,7 @@ async function parseJson(req: Request) {
   try {
     return await req.json();
   } catch {
-    throw new Error(
-      "JSON نامعتبر است.",
-    );
+    throw new Error("JSON نامعتبر است.");
   }
 }
 
@@ -107,8 +101,7 @@ function getMessages(body: any) {
 
   if (!messages.length) {
     return {
-      error:
-        "هیچ پیام معتبری ارسال نشده است.",
+      error: "هیچ پیام معتبری ارسال نشده است.",
       messages: null,
     };
   }
@@ -133,15 +126,14 @@ async function handleGroq(body: any) {
         content: null,
         error: {
           message:
-            "GROQ_API_KEY روی سرور تنظیم نشده است.",
+            "GROQ_API_KEY تنظیم نشده است.",
         },
       },
       500,
     );
   }
 
-  const validation =
-    getMessages(body);
+  const validation = getMessages(body);
 
   if (validation.error) {
     return json(
@@ -157,8 +149,7 @@ async function handleGroq(body: any) {
     );
   }
 
-  const messages =
-    validation.messages;
+  const messages = validation.messages;
 
   const temperature =
     typeof body.temperature === "number"
@@ -181,14 +172,11 @@ async function handleGroq(body: any) {
       "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
-
         headers: {
-          "Content-Type":
-            "application/json",
+          "Content-Type": "application/json",
           "Authorization":
             `Bearer ${GROQ_API_KEY}`,
         },
-
         body: JSON.stringify({
           model: GROQ_MODEL,
           messages,
@@ -200,8 +188,7 @@ async function handleGroq(body: any) {
       },
     );
 
-    const raw =
-      await response.text();
+    const raw = await response.text();
 
     let data: any;
 
@@ -238,16 +225,14 @@ async function handleGroq(body: any) {
               message:
                 "خطا در ارتباط با Groq.",
             },
-          status:
-            response.status,
+          status: response.status,
         },
         response.status,
       );
     }
 
     const content =
-      data?.choices?.[0]?.message
-        ?.content;
+      data?.choices?.[0]?.message?.content;
 
     if (
       typeof content !== "string" ||
@@ -304,9 +289,7 @@ async function handleGroq(body: any) {
 // POST /api/openrouter
 // ============================================================
 
-async function handleOpenRouter(
-  body: any,
-) {
+async function handleOpenRouter(body: any) {
   if (!OPENROUTER_API_KEY) {
     return json(
       {
@@ -315,15 +298,14 @@ async function handleOpenRouter(
         content: null,
         error: {
           message:
-            "OPENROUTER_API_KEY روی سرور تنظیم نشده است.",
+            "OPENROUTER_API_KEY تنظیم نشده است.",
         },
       },
       500,
     );
   }
 
-  const validation =
-    getMessages(body);
+  const validation = getMessages(body);
 
   if (validation.error) {
     return json(
@@ -332,16 +314,14 @@ async function handleOpenRouter(
         provider: "openrouter",
         content: null,
         error: {
-          message:
-            validation.error,
+          message: validation.error,
         },
       },
       400,
     );
   }
 
-  const messages =
-    validation.messages;
+  const messages = validation.messages;
 
   const temperature =
     typeof body.temperature === "number"
@@ -364,7 +344,6 @@ async function handleOpenRouter(
       "https://openrouter.ai/api/v1/chat/completions",
       {
         method: "POST",
-
         headers: {
           "Content-Type":
             "application/json",
@@ -373,9 +352,6 @@ async function handleOpenRouter(
             `Bearer ${OPENROUTER_API_KEY}`,
 
           "HTTP-Referer":
-            Deno.env.get(
-              "APP_URL",
-            ) ||
             "https://hendesyar.ir",
 
           "X-Title":
@@ -383,23 +359,16 @@ async function handleOpenRouter(
         },
 
         body: JSON.stringify({
-          model:
-            OPENROUTER_MODEL,
-
+          model: OPENROUTER_MODEL,
           messages,
-
           temperature,
-
-          max_tokens:
-            maxTokens,
-
+          max_tokens: maxTokens,
           stream: false,
         }),
       },
     );
 
-    const raw =
-      await response.text();
+    const raw = await response.text();
 
     let data: any;
 
@@ -409,8 +378,7 @@ async function handleOpenRouter(
       return json(
         {
           success: false,
-          provider:
-            "openrouter",
+          provider: "openrouter",
           content: null,
           error: {
             message:
@@ -430,24 +398,21 @@ async function handleOpenRouter(
       return json(
         {
           success: false,
-          provider:
-            "openrouter",
+          provider: "openrouter",
           content: null,
           error:
             data?.error || {
               message:
                 "خطا در ارتباط با OpenRouter.",
             },
-          status:
-            response.status,
+          status: response.status,
         },
         response.status,
       );
     }
 
     const content =
-      data?.choices?.[0]?.message
-        ?.content;
+      data?.choices?.[0]?.message?.content;
 
     if (
       typeof content !== "string" ||
@@ -456,8 +421,7 @@ async function handleOpenRouter(
       return json(
         {
           success: false,
-          provider:
-            "openrouter",
+          provider: "openrouter",
           content: null,
           error: {
             message:
@@ -470,12 +434,10 @@ async function handleOpenRouter(
 
     return json({
       success: true,
-      provider:
-        "openrouter",
+      provider: "openrouter",
       content: content.trim(),
       model:
-        data?.model ||
-        OPENROUTER_MODEL,
+        data?.model || OPENROUTER_MODEL,
       usage:
         data?.usage || null,
     });
@@ -488,8 +450,7 @@ async function handleOpenRouter(
     return json(
       {
         success: false,
-        provider:
-          "openrouter",
+        provider: "openrouter",
         content: null,
         error: {
           message:
@@ -511,29 +472,18 @@ async function handleOpenRouter(
 function healthCheck() {
   return json({
     success: true,
-
-    service:
-      "HendESyar AI Proxy",
-
+    service: "HendESyar AI Proxy",
     status: "online",
 
     services: {
-      groq:
-        Boolean(GROQ_API_KEY),
-
-      openrouter:
-        Boolean(
-          OPENROUTER_API_KEY,
-        ),
-
-      // Gemini intentionally NOT here.
+      groq: Boolean(GROQ_API_KEY),
+      openrouter: Boolean(OPENROUTER_API_KEY),
       gemini: false,
     },
 
     models: {
       groq: GROQ_MODEL,
-      openrouter:
-        OPENROUTER_MODEL,
+      openrouter: OPENROUTER_MODEL,
     },
   });
 }
@@ -549,25 +499,14 @@ const server = Deno.serve(
 
   async (req) => {
     try {
-      // ------------------------------------------------------
-      // CORS PREFLIGHT
-      // ------------------------------------------------------
-
-      if (
-        req.method === "OPTIONS"
-      ) {
-        return new Response(
-          null,
-          {
-            status: 204,
-            headers:
-              corsHeaders,
-          },
-        );
+      if (req.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: corsHeaders,
+        });
       }
 
-      const url =
-        new URL(req.url);
+      const url = new URL(req.url);
 
       // ------------------------------------------------------
       // HEALTH CHECK
@@ -581,51 +520,41 @@ const server = Deno.serve(
       }
 
       // ------------------------------------------------------
-      // GROQ CHAT
+      // GROQ
       // ------------------------------------------------------
 
       if (
         req.method === "POST" &&
-        url.pathname ===
-          "/api/chat"
+        url.pathname === "/api/chat"
       ) {
-        const body =
-          await parseJson(req);
-
-        return await handleGroq(
-          body,
-        );
+        const body = await parseJson(req);
+        return await handleGroq(body);
       }
 
       // ------------------------------------------------------
-      // OPENROUTER CHAT
+      // OPENROUTER
       // ------------------------------------------------------
 
       if (
         req.method === "POST" &&
-        url.pathname ===
-          "/api/openrouter"
+        url.pathname === "/api/openrouter"
       ) {
-        const body =
-          await parseJson(req);
-
-        return await handleOpenRouter(
-          body,
-        );
+        const body = await parseJson(req);
+        return await handleOpenRouter(body);
       }
 
       // ------------------------------------------------------
-      // GEMINI IS NOT HERE
+      // GEMINI IS NOT HANDLED BY DENO
       // ------------------------------------------------------
 
       if (
-        url.pathname ===
-        "/api/vision"
+        url.pathname === "/api/vision"
       ) {
         return json(
           {
             success: false,
             provider: "gemini",
+            content: null,
             error: {
               message:
                 "Gemini از Deno ارائه نمی‌شود. درخواست Gemini باید از طریق Supabase ارسال شود.",
