@@ -13,17 +13,32 @@ const GROQ_API_KEY =
 const OPENROUTER_API_KEY =
     "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";const GROQ_API_KEY = "YOUR_GROQ_API_KEY";
 
+// ============================================================
+// HENDESYAR AI PROXY - DENO
+// Groq + OpenRouter ONLY
+// Gemini is NOT handled by Deno.
+// Gemini should be handled through Supabase.
+// ============================================================
+
+// ============================================================
+// CONFIG
+// ============================================================
+
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
+
+const OPENROUTER_API_KEY =
+  Deno.env.get("OPENROUTER_API_KEY") || "";
+
 const GROQ_MODEL =
   Deno.env.get("GROQ_MODEL") ||
   "llama-3.3-70b-versatile";
 
 const OPENROUTER_MODEL =
   Deno.env.get("OPENROUTER_MODEL") ||
-  "meta-llama/llama-3.3-70b-instruct:free";
+  "openai/gpt-4o-mini";
 
 const PORT =
   Number(Deno.env.get("PORT") || 8000);
-
 
 // ============================================================
 // CORS
@@ -31,33 +46,26 @@ const PORT =
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-
   "Access-Control-Allow-Headers":
     "Content-Type, Authorization",
-
   "Access-Control-Allow-Methods":
     "GET, POST, OPTIONS",
-
-  "Access-Control-Max-Age":
-    "86400",
 };
-
 
 // ============================================================
 // JSON RESPONSE
 // ============================================================
 
-function json(data, status = 200) {
-
+function json(
+  data: unknown,
+  status = 200,
+) {
   return new Response(
     JSON.stringify(data),
-
     {
       status,
-
       headers: {
         ...corsHeaders,
-
         "Content-Type":
           "application/json; charset=utf-8",
       },
@@ -65,493 +73,476 @@ function json(data, status = 200) {
   );
 }
 
-
-// ============================================================
-// ERROR RESPONSE
-// ============================================================
-
-function errorResponse(
-  message,
-  status = 500,
-  provider = null,
-) {
-
-  return json(
-    {
-      success: false,
-
-      provider,
-
-      content: null,
-
-      error: {
-        message,
-      },
-    },
-
-    status,
-  );
-}
-
-
 // ============================================================
 // PARSE JSON
 // ============================================================
 
-async function parseJson(req) {
-
+async function parseJson(req: Request) {
   try {
-
     return await req.json();
-
   } catch {
-
     throw new Error(
-      "JSON ارسال‌شده معتبر نیست.",
+      "JSON نامعتبر است.",
     );
   }
 }
 
-
 // ============================================================
-// CLEAN MESSAGES
+// VALIDATE MESSAGES
 // ============================================================
 
-function cleanMessages(messages) {
-
-  if (!Array.isArray(messages)) {
-    return [];
+function getMessages(body: any) {
+  if (!Array.isArray(body?.messages)) {
+    return {
+      error: "messages باید آرایه باشد.",
+      messages: null,
+    };
   }
 
-  return messages
-    .filter((message) => {
-
-      if (!message) {
-        return false;
-      }
-
-      if (
-        ![
-          "system",
-          "user",
-          "assistant",
-        ].includes(message.role)
-      ) {
-        return false;
-      }
-
-      return (
-        typeof message.content ===
-        "string"
-      );
-    })
-
-    .map((message) => ({
-      role: message.role,
-
-      content:
-        message.content
-          .slice(0, 20000),
-    }))
-
+  const messages = body.messages
+    .filter(
+      (m: any) =>
+        m &&
+        ["system", "user", "assistant"].includes(
+          m.role,
+        ) &&
+        typeof m.content === "string" &&
+        m.content.trim().length > 0,
+    )
     .slice(-20);
-}
 
+  if (!messages.length) {
+    return {
+      error:
+        "هیچ پیام معتبری ارسال نشده است.",
+      messages: null,
+    };
+  }
+
+  return {
+    error: null,
+    messages,
+  };
+}
 
 // ============================================================
 // GROQ
+// POST /api/chat
 // ============================================================
 
-async function callGroq(
-  messages,
-  temperature = 0.2,
-  maxTokens = 1800,
-) {
-
+async function handleGroq(body: any) {
   if (!GROQ_API_KEY) {
-
-    throw new Error(
-      "GROQ_API_KEY روی سرور تنظیم نشده است.",
+    return json(
+      {
+        success: false,
+        provider: "groq",
+        content: null,
+        error: {
+          message:
+            "GROQ_API_KEY روی سرور تنظیم نشده است.",
+        },
+      },
+      500,
     );
   }
 
+  const validation =
+    getMessages(body);
 
-  const response = await fetch(
-    "https://api.groq.com/openai/v1/chat/completions",
-
-    {
-      method: "POST",
-
-      headers: {
-
-        "Content-Type":
-          "application/json",
-
-        "Authorization":
-          `Bearer ${GROQ_API_KEY}`,
+  if (validation.error) {
+    return json(
+      {
+        success: false,
+        provider: "groq",
+        content: null,
+        error: {
+          message: validation.error,
+        },
       },
+      400,
+    );
+  }
 
-      body: JSON.stringify({
+  const messages =
+    validation.messages;
 
-        model: GROQ_MODEL,
+  const temperature =
+    typeof body.temperature === "number"
+      ? Math.max(
+          0,
+          Math.min(body.temperature, 2),
+        )
+      : 0.2;
 
-        messages,
-
-        temperature:
-          typeof temperature === "number"
-            ? Math.max(
-                0,
-                Math.min(temperature, 1),
-              )
-            : 0.2,
-
-        max_completion_tokens:
-          Math.min(
-            Math.max(
-              Number(maxTokens) || 1800,
-              100,
-            ),
-            4000,
-          ),
-
-        stream: false,
-      }),
-    },
-  );
-
-
-  const raw =
-    await response.text();
-
-
-  let data;
+  const maxTokens =
+    typeof body.max_tokens === "number"
+      ? Math.min(
+          Math.max(body.max_tokens, 1),
+          4000,
+        )
+      : 1800;
 
   try {
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
 
-    data = JSON.parse(raw);
+        headers: {
+          "Content-Type":
+            "application/json",
+          "Authorization":
+            `Bearer ${GROQ_API_KEY}`,
+        },
 
-  } catch {
-
-    throw new Error(
-      "پاسخ Groq قابل پردازش نیست.",
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages,
+          temperature,
+          max_completion_tokens:
+            maxTokens,
+          stream: false,
+        }),
+      },
     );
-  }
 
+    const raw =
+      await response.text();
 
-  if (!response.ok) {
+    let data: any;
 
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return json(
+        {
+          success: false,
+          provider: "groq",
+          content: null,
+          error: {
+            message:
+              "پاسخ Groq معتبر نیست.",
+          },
+        },
+        502,
+      );
+    }
+
+    if (!response.ok) {
+      console.error(
+        "Groq API error:",
+        data,
+      );
+
+      return json(
+        {
+          success: false,
+          provider: "groq",
+          content: null,
+          error:
+            data?.error || {
+              message:
+                "خطا در ارتباط با Groq.",
+            },
+          status:
+            response.status,
+        },
+        response.status,
+      );
+    }
+
+    const content =
+      data?.choices?.[0]?.message
+        ?.content;
+
+    if (
+      typeof content !== "string" ||
+      !content.trim()
+    ) {
+      return json(
+        {
+          success: false,
+          provider: "groq",
+          content: null,
+          error: {
+            message:
+              "Groq پاسخ متنی خالی برگرداند.",
+          },
+        },
+        502,
+      );
+    }
+
+    return json({
+      success: true,
+      provider: "groq",
+      content: content.trim(),
+      model:
+        data?.model || GROQ_MODEL,
+      usage:
+        data?.usage || null,
+    });
+  } catch (error) {
     console.error(
-      "GROQ ERROR:",
-      data,
+      "Groq network error:",
+      error,
     );
 
-    throw new Error(
-      data?.error?.message ||
-      `Groq HTTP ${response.status}`,
-    );
-  }
-
-
-  const content =
-    data?.choices?.[0]
-      ?.message?.content;
-
-
-  if (
-    typeof content !== "string" ||
-    !content.trim()
-  ) {
-
-    throw new Error(
-      "Groq پاسخ خالی برگرداند.",
+    return json(
+      {
+        success: false,
+        provider: "groq",
+        content: null,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : "خطا در ارتباط با Groq.",
+        },
+      },
+      502,
     );
   }
-
-
-  return {
-
-    success: true,
-
-    provider: "groq",
-
-    content: content.trim(),
-
-    model:
-      data.model ||
-      GROQ_MODEL,
-
-    usage:
-      data.usage ||
-      null,
-  };
 }
-
 
 // ============================================================
 // OPENROUTER
+// POST /api/openrouter
 // ============================================================
 
-async function callOpenRouter(
-  messages,
-  temperature = 0.2,
-  maxTokens = 1800,
+async function handleOpenRouter(
+  body: any,
 ) {
-
   if (!OPENROUTER_API_KEY) {
-
-    throw new Error(
-      "OPENROUTER_API_KEY روی سرور تنظیم نشده است.",
-    );
-  }
-
-
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-
-    {
-      method: "POST",
-
-      headers: {
-
-        "Content-Type":
-          "application/json",
-
-        "Authorization":
-          `Bearer ${OPENROUTER_API_KEY}`,
-
-        "HTTP-Referer":
-          "https://hendesyar.ir",
-
-        "X-Title":
-          "HendESyar",
+    return json(
+      {
+        success: false,
+        provider: "openrouter",
+        content: null,
+        error: {
+          message:
+            "OPENROUTER_API_KEY روی سرور تنظیم نشده است.",
+        },
       },
-
-      body: JSON.stringify({
-
-        model:
-          OPENROUTER_MODEL,
-
-        messages,
-
-        temperature:
-          typeof temperature === "number"
-            ? Math.max(
-                0,
-                Math.min(temperature, 1),
-              )
-            : 0.2,
-
-        max_tokens:
-          Math.min(
-            Math.max(
-              Number(maxTokens) || 1800,
-              100,
-            ),
-            4000,
-          ),
-
-        stream: false,
-      }),
-    },
-  );
-
-
-  const raw =
-    await response.text();
-
-
-  let data;
-
-  try {
-
-    data = JSON.parse(raw);
-
-  } catch {
-
-    throw new Error(
-      "پاسخ OpenRouter قابل پردازش نیست.",
+      500,
     );
   }
 
+  const validation =
+    getMessages(body);
 
-  if (!response.ok) {
-
-    console.error(
-      "OPENROUTER ERROR:",
-      data,
-    );
-
-    throw new Error(
-      data?.error?.message ||
-      `OpenRouter HTTP ${response.status}`,
-    );
-  }
-
-
-  const content =
-    data?.choices?.[0]
-      ?.message?.content;
-
-
-  if (
-    typeof content !== "string" ||
-    !content.trim()
-  ) {
-
-    throw new Error(
-      "OpenRouter پاسخ خالی برگرداند.",
-    );
-  }
-
-
-  return {
-
-    success: true,
-
-    provider: "openrouter",
-
-    content: content.trim(),
-
-    model:
-      data.model ||
-      OPENROUTER_MODEL,
-
-    usage:
-      data.usage ||
-      null,
-  };
-}
-
-
-// ============================================================
-// CHAT
-//
-// Primary:
-//   Groq
-//
-// Fallback:
-//   OpenRouter
-// ============================================================
-
-async function handleChat(body) {
-
-  if (
-    !Array.isArray(body?.messages)
-  ) {
-
-    return errorResponse(
-      "messages باید آرایه باشد.",
+  if (validation.error) {
+    return json(
+      {
+        success: false,
+        provider: "openrouter",
+        content: null,
+        error: {
+          message:
+            validation.error,
+        },
+      },
       400,
-      "proxy",
     );
   }
-
 
   const messages =
-    cleanMessages(
-      body.messages,
-    );
-
-
-  if (!messages.length) {
-
-    return errorResponse(
-      "هیچ پیام معتبری ارسال نشده است.",
-      400,
-      "proxy",
-    );
-  }
-
+    validation.messages;
 
   const temperature =
-    typeof body.temperature ===
-    "number"
-
-      ? body.temperature
-
+    typeof body.temperature === "number"
+      ? Math.max(
+          0,
+          Math.min(body.temperature, 2),
+        )
       : 0.2;
 
-
   const maxTokens =
-    typeof body.max_tokens ===
-    "number"
-
-      ? body.max_tokens
-
+    typeof body.max_tokens === "number"
+      ? Math.min(
+          Math.max(body.max_tokens, 1),
+          4000,
+        )
       : 1800;
 
+  try {
+    const response = await fetch(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
 
-  // ----------------------------------------------------------
-  // GROQ
-  // ----------------------------------------------------------
+        headers: {
+          "Content-Type":
+            "application/json",
 
-  if (GROQ_API_KEY) {
+          "Authorization":
+            `Bearer ${OPENROUTER_API_KEY}`,
+
+          "HTTP-Referer":
+            Deno.env.get(
+              "APP_URL",
+            ) ||
+            "https://hendesyar.ir",
+
+          "X-Title":
+            "HendESyar AI",
+        },
+
+        body: JSON.stringify({
+          model:
+            OPENROUTER_MODEL,
+
+          messages,
+
+          temperature,
+
+          max_tokens:
+            maxTokens,
+
+          stream: false,
+        }),
+      },
+    );
+
+    const raw =
+      await response.text();
+
+    let data: any;
 
     try {
-
-      const result =
-        await callGroq(
-          messages,
-          temperature,
-          maxTokens,
-        );
-
+      data = JSON.parse(raw);
+    } catch {
       return json(
-        result,
-        200,
-      );
-
-    } catch (error) {
-
-      console.error(
-        "Groq failed:",
-        error instanceof Error
-          ? error.message
-          : error,
+        {
+          success: false,
+          provider:
+            "openrouter",
+          content: null,
+          error: {
+            message:
+              "پاسخ OpenRouter معتبر نیست.",
+          },
+        },
+        502,
       );
     }
-  }
 
-
-  // ----------------------------------------------------------
-  // OPENROUTER FALLBACK
-  // ----------------------------------------------------------
-
-  if (OPENROUTER_API_KEY) {
-
-    try {
-
-      const result =
-        await callOpenRouter(
-          messages,
-          temperature,
-          maxTokens,
-        );
+    if (!response.ok) {
+      console.error(
+        "OpenRouter API error:",
+        data,
+      );
 
       return json(
-        result,
-        200,
-      );
-
-    } catch (error) {
-
-      console.error(
-        "OpenRouter failed:",
-        error instanceof Error
-          ? error.message
-          : error,
+        {
+          success: false,
+          provider:
+            "openrouter",
+          content: null,
+          error:
+            data?.error || {
+              message:
+                "خطا در ارتباط با OpenRouter.",
+            },
+          status:
+            response.status,
+        },
+        response.status,
       );
     }
+
+    const content =
+      data?.choices?.[0]?.message
+        ?.content;
+
+    if (
+      typeof content !== "string" ||
+      !content.trim()
+    ) {
+      return json(
+        {
+          success: false,
+          provider:
+            "openrouter",
+          content: null,
+          error: {
+            message:
+              "OpenRouter پاسخ متنی خالی برگرداند.",
+          },
+        },
+        502,
+      );
+    }
+
+    return json({
+      success: true,
+      provider:
+        "openrouter",
+      content: content.trim(),
+      model:
+        data?.model ||
+        OPENROUTER_MODEL,
+      usage:
+        data?.usage || null,
+    });
+  } catch (error) {
+    console.error(
+      "OpenRouter network error:",
+      error,
+    );
+
+    return json(
+      {
+        success: false,
+        provider:
+          "openrouter",
+        content: null,
+        error: {
+          message:
+            error instanceof Error
+              ? error.message
+              : "خطا در ارتباط با OpenRouter.",
+        },
+      },
+      502,
+    );
   }
-
-
-  return errorResponse(
-    "هیچ‌کدام از سرویس‌های هوش مصنوعی در دسترس نیستند.",
-    503,
-    "proxy",
-  );
 }
 
+// ============================================================
+// HEALTH CHECK
+// GET /
+// ============================================================
+
+function healthCheck() {
+  return json({
+    success: true,
+
+    service:
+      "HendESyar AI Proxy",
+
+    status: "online",
+
+    services: {
+      groq:
+        Boolean(GROQ_API_KEY),
+
+      openrouter:
+        Boolean(
+          OPENROUTER_API_KEY,
+        ),
+
+      // Gemini intentionally NOT here.
+      gemini: false,
+    },
+
+    models: {
+      groq: GROQ_MODEL,
+      openrouter:
+        OPENROUTER_MODEL,
+    },
+  });
+}
 
 // ============================================================
 // SERVER
@@ -563,31 +554,26 @@ const server = Deno.serve(
   },
 
   async (req) => {
-
     try {
-
       // ------------------------------------------------------
       // CORS PREFLIGHT
       // ------------------------------------------------------
 
       if (
-        req.method ===
-        "OPTIONS"
+        req.method === "OPTIONS"
       ) {
-
         return new Response(
           null,
           {
             status: 204,
-            headers: corsHeaders,
+            headers:
+              corsHeaders,
           },
         );
       }
 
-
       const url =
         new URL(req.url);
-
 
       // ------------------------------------------------------
       // HEALTH CHECK
@@ -597,122 +583,102 @@ const server = Deno.serve(
         req.method === "GET" &&
         url.pathname === "/"
       ) {
-
-        return json({
-
-          success: true,
-
-          service:
-            "HendESyar AI Proxy",
-
-          status:
-            "online",
-
-          services: {
-
-            chat:
-              Boolean(
-                GROQ_API_KEY ||
-                OPENROUTER_API_KEY,
-              ),
-
-            groq:
-              Boolean(
-                GROQ_API_KEY,
-              ),
-
-            openrouter:
-              Boolean(
-                OPENROUTER_API_KEY,
-              ),
-
-            gemini:
-              false,
-          },
-
-          models: {
-
-            groq:
-              GROQ_MODEL,
-
-            openrouter:
-              OPENROUTER_MODEL,
-          },
-
-        });
+        return healthCheck();
       }
 
-
       // ------------------------------------------------------
-      // CHAT
+      // GROQ CHAT
       // ------------------------------------------------------
 
       if (
         req.method === "POST" &&
-        url.pathname === "/api/chat"
+        url.pathname ===
+          "/api/chat"
       ) {
-
         const body =
           await parseJson(req);
 
-        return await handleChat(
+        return await handleGroq(
           body,
         );
       }
 
+      // ------------------------------------------------------
+      // OPENROUTER CHAT
+      // ------------------------------------------------------
+
+      if (
+        req.method === "POST" &&
+        url.pathname ===
+          "/api/openrouter"
+      ) {
+        const body =
+          await parseJson(req);
+
+        return await handleOpenRouter(
+          body,
+        );
+      }
 
       // ------------------------------------------------------
-      // NOT FOUND
+      // GEMINI IS NOT HERE
       // ------------------------------------------------------
 
-      return errorResponse(
-        "Endpoint پیدا نشد.",
+      if (
+        url.pathname ===
+        "/api/vision"
+      ) {
+        return json(
+          {
+            success: false,
+            provider: "gemini",
+            error: {
+              message:
+                "Gemini از Deno ارائه نمی‌شود. درخواست Gemini باید از طریق Supabase ارسال شود.",
+            },
+          },
+          410,
+        );
+      }
+
+      // ------------------------------------------------------
+      // 404
+      // ------------------------------------------------------
+
+      return json(
+        {
+          success: false,
+          error: {
+            message:
+              "Endpoint پیدا نشد.",
+          },
+        },
         404,
-        "proxy",
       );
-
     } catch (error) {
-
       console.error(
         "SERVER ERROR:",
         error,
       );
 
-      return errorResponse(
-        error instanceof Error
-          ? error.message
-          : "خطای ناشناخته سرور.",
+      return json(
+        {
+          success: false,
+          error: {
+            message:
+              error instanceof Error
+                ? error.message
+                : "خطای ناشناخته سرور.",
+          },
+        },
         500,
-        "proxy",
       );
     }
   },
 );
 
-
 console.log(
-  "🚀 HendESyar AI Proxy started",
+  `🚀 HendESyar AI Proxy running on port ${PORT}`,
 );
-
-console.log(
-  `Port: ${PORT}`,
-);
-
-console.log(
-  `Groq: ${
-    GROQ_API_KEY
-      ? "configured"
-      : "missing"
-  }`,
-);
-
-console.log(
-  `OpenRouter: ${
-    OPENROUTER_API_KEY
-      ? "configured"
-      : "missing"
-  }`,
-);
-
 
 await server.finished;
