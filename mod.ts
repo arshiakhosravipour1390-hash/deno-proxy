@@ -376,57 +376,30 @@ ${message.content}`;
    GEMINI TEXT
 ========================================================= */
 
-async function callGemini(body) {
-
-    if (!GEMINI_API_KEY) {
-        return {
-            ok: false,
-            status: 500,
-            content: null,
-            error: "GEMINI_API_KEY تنظیم نشده است"
-        };
-    }
-
+async function callGemini(body: any) {
     try {
-
-        const prompt = convertToGemini(
-            buildMessages(body.messages)
-        );
-
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
             {
                 method: "POST",
-
                 headers: {
-                    "x-goog-api-key":
-                        GEMINI_API_KEY,
-
-                    "Content-Type":
-                        "application/json"
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${GEMINI_API_KEY}`
                 },
-
                 body: JSON.stringify({
-
                     contents: [
                         {
                             role: "user",
-
                             parts: [
                                 {
-                                    text: prompt
+                                    text: convertToGemini(body.messages)
                                 }
                             ]
                         }
                     ],
-
                     generationConfig: {
-                        maxOutputTokens:
-                            body.max_tokens ?? 1800,
-
-                        thinkingConfig: {
-                            thinkingLevel: "medium"
-                        }
+                        temperature: body.temperature ?? 0.3,
+                        maxOutputTokens: body.max_tokens ?? 800
                     }
                 })
             }
@@ -445,14 +418,13 @@ async function callGemini(body) {
         }
 
         console.log(
-            `[GEMINI] ${response.status}`
+            `[GEMINI] ${response.status}`,
+            JSON.stringify(data)
         );
 
         const content =
-            data?.candidates?.[0]
-                ?.content
-                ?.parts
-                ?.map(part => part.text || "")
+            data?.candidates?.[0]?.content?.parts
+                ?.map((x: any) => x.text || "")
                 .join("") || null;
 
         return {
@@ -467,20 +439,16 @@ async function callGemini(body) {
 
     } catch (error) {
 
-        console.error(
-            "[GEMINI]",
-            error
-        );
+        console.error("[GEMINI]", error);
 
         return {
             ok: false,
             status: 500,
             content: null,
-            error: errorMessage(error)
+            error: String(error)
         };
     }
 }
-
 
 /* =========================================================
    GEMINI VISION
