@@ -12,8 +12,6 @@ const GROQ_API_KEY =
 
 const OPENROUTER_API_KEY =
     "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";const GROQ_API_KEY = "YOUR_GROQ_API_KEY";
-const OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY";
-
 const GROQ_MODEL = "openai/gpt-oss-20b";
 const OPENROUTER_MODEL = "openrouter/free";
 
