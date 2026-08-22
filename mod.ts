@@ -2,11 +2,7 @@ const GROQ_API_KEY =
     "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";
 
 const OPENROUTER_API_KEY =
-    "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";const GROQ_API_KEY = "YOUR_GROQ_API_KEY";
-
-# نسخه نهایی Deno — Groq + OpenRouter
-
-```ts
+    "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";
 // ============================================================
 // HENDESYAR AI PROXY - DENO
 // Groq + OpenRouter ONLY
