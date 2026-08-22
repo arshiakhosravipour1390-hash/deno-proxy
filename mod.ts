@@ -1,6 +1,6 @@
 const GROQ_API_KEY = "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";
 const OPENROUTER_API_KEY = "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";
-const GEMINI_API_KEY = "AQ.Ab8RN6K-U5qy3SZcXIa1UrL2yabRuy1uYD5n8cbozrYMWvq3Yw";
+const GEMINI_API_KEY = "AQ.Ab8RN6LpTM4RAbIbD8y1zfo6ottT2lXVlz57Yd7xRtV40Q2Yfg";
 // ============================================================
 // MODELS
 // ============================================================
