@@ -14,7 +14,7 @@ const OPENROUTER_API_KEY =
     "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";
 
 const GEMINI_API_KEY =
-    "AQ.Ab8RN6JIAn7H-EThDPi5c7ac0JKacL7S5FjVV0mdQD4OFpnTcg";
+    "AQ.Ab8RN6JjegnWSWIblMqyIilM0FkfQdlqcIJDfwfPBK0_eXTnAw";
 
 
 // ============================================================
