@@ -12,474 +12,707 @@ const GROQ_API_KEY =
 
 const OPENROUTER_API_KEY =
     "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";const GROQ_API_KEY = "YOUR_GROQ_API_KEY";
+
 const GROQ_MODEL =
-  Deno.env.get("GROQ_MODEL") || "llama-3.3-70b-versatile";
+  Deno.env.get("GROQ_MODEL") ||
+  "llama-3.3-70b-versatile";
 
-const GEMINI_MODEL =
-  Deno.env.get("GEMINI_MODEL") || "gemini-3.7-flash";
+const OPENROUTER_MODEL =
+  Deno.env.get("OPENROUTER_MODEL") ||
+  "meta-llama/llama-3.3-70b-instruct:free";
 
-const PORT = Number(Deno.env.get("PORT") || 8000);
+const PORT =
+  Number(Deno.env.get("PORT") || 8000);
 
-if (!GROQ_API_KEY) {
-  console.error("❌ GROQ_API_KEY is missing");
-}
 
-if (!GEMINI_API_KEY) {
-  console.error("❌ GEMINI_API_KEY is missing");
-}
+// ============================================================
+// CORS
+// ============================================================
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization",
+
+  "Access-Control-Allow-Methods":
+    "GET, POST, OPTIONS",
+
+  "Access-Control-Max-Age":
+    "86400",
 };
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8",
+
+// ============================================================
+// JSON RESPONSE
+// ============================================================
+
+function json(data, status = 200) {
+
+  return new Response(
+    JSON.stringify(data),
+
+    {
+      status,
+
+      headers: {
+        ...corsHeaders,
+
+        "Content-Type":
+          "application/json; charset=utf-8",
+      },
     },
-  });
+  );
 }
 
-async function parseJson(req: Request) {
+
+// ============================================================
+// ERROR RESPONSE
+// ============================================================
+
+function errorResponse(
+  message,
+  status = 500,
+  provider = null,
+) {
+
+  return json(
+    {
+      success: false,
+
+      provider,
+
+      content: null,
+
+      error: {
+        message,
+      },
+    },
+
+    status,
+  );
+}
+
+
+// ============================================================
+// PARSE JSON
+// ============================================================
+
+async function parseJson(req) {
+
   try {
+
     return await req.json();
+
   } catch {
-    throw new Error("JSON نامعتبر است.");
+
+    throw new Error(
+      "JSON ارسال‌شده معتبر نیست.",
+    );
   }
 }
 
-/* =========================================================
-   GROQ CHAT
-   ========================================================= */
 
-async function handleChat(body: any) {
-  if (!GROQ_API_KEY) {
-    return json(
-      {
-        success: false,
-        provider: "groq",
-        content: null,
-        error: {
-          message: "GROQ_API_KEY روی سرور تنظیم نشده است.",
-        },
-      },
-      500,
-    );
+// ============================================================
+// CLEAN MESSAGES
+// ============================================================
+
+function cleanMessages(messages) {
+
+  if (!Array.isArray(messages)) {
+    return [];
   }
 
-  if (!Array.isArray(body.messages)) {
-    return json(
-      {
-        success: false,
-        provider: "groq",
-        content: null,
-        error: {
-          message: "messages باید آرایه باشد.",
-        },
-      },
-      400,
-    );
-  }
+  return messages
+    .filter((message) => {
 
-  const messages = body.messages
-    .filter((m: any) =>
-      m &&
-      ["system", "user", "assistant"].includes(m.role) &&
-      typeof m.content === "string"
-    )
+      if (!message) {
+        return false;
+      }
+
+      if (
+        ![
+          "system",
+          "user",
+          "assistant",
+        ].includes(message.role)
+      ) {
+        return false;
+      }
+
+      return (
+        typeof message.content ===
+        "string"
+      );
+    })
+
+    .map((message) => ({
+      role: message.role,
+
+      content:
+        message.content
+          .slice(0, 20000),
+    }))
+
     .slice(-20);
+}
 
-  if (!messages.length) {
-    return json(
-      {
-        success: false,
-        provider: "groq",
-        content: null,
-        error: {
-          message: "هیچ پیام معتبری ارسال نشده است.",
-        },
-      },
-      400,
+
+// ============================================================
+// GROQ
+// ============================================================
+
+async function callGroq(
+  messages,
+  temperature = 0.2,
+  maxTokens = 1800,
+) {
+
+  if (!GROQ_API_KEY) {
+
+    throw new Error(
+      "GROQ_API_KEY روی سرور تنظیم نشده است.",
     );
   }
 
-  const groqResponse = await fetch(
+
+  const response = await fetch(
     "https://api.groq.com/openai/v1/chat/completions",
+
     {
       method: "POST",
+
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GROQ_API_KEY}`,
+
+        "Content-Type":
+          "application/json",
+
+        "Authorization":
+          `Bearer ${GROQ_API_KEY}`,
       },
+
       body: JSON.stringify({
+
         model: GROQ_MODEL,
+
         messages,
+
         temperature:
-          typeof body.temperature === "number"
-            ? body.temperature
+          typeof temperature === "number"
+            ? Math.max(
+                0,
+                Math.min(temperature, 1),
+              )
             : 0.2,
+
         max_completion_tokens:
-          typeof body.max_tokens === "number"
-            ? Math.min(body.max_tokens, 4000)
-            : 1800,
+          Math.min(
+            Math.max(
+              Number(maxTokens) || 1800,
+              100,
+            ),
+            4000,
+          ),
+
         stream: false,
       }),
     },
   );
 
-  const raw = await groqResponse.text();
+
+  const raw =
+    await response.text();
+
 
   let data;
 
   try {
+
     data = JSON.parse(raw);
+
   } catch {
-    return json(
-      {
-        success: false,
-        provider: "groq",
-        content: null,
-        error: {
-          message: "پاسخ Groq معتبر نیست.",
-        },
-      },
-      502,
+
+    throw new Error(
+      "پاسخ Groq قابل پردازش نیست.",
     );
   }
 
-  if (!groqResponse.ok) {
-    console.error("Groq error:", data);
 
-    return json(
-      {
-        success: false,
-        provider: "groq",
-        content: null,
-        error: data.error || {
-          message: "خطا در ارتباط با Groq.",
-        },
-        status: groqResponse.status,
-      },
-      groqResponse.status,
+  if (!response.ok) {
+
+    console.error(
+      "GROQ ERROR:",
+      data,
+    );
+
+    throw new Error(
+      data?.error?.message ||
+      `Groq HTTP ${response.status}`,
     );
   }
+
 
   const content =
-    data?.choices?.[0]?.message?.content;
+    data?.choices?.[0]
+      ?.message?.content;
 
-  if (!content) {
-    return json(
-      {
-        success: false,
-        provider: "groq",
-        content: null,
-        error: {
-          message: "Groq پاسخ متنی خالی برگرداند.",
-        },
-      },
-      502,
-    );
-  }
-
-  return json({
-    success: true,
-    provider: "groq",
-    content,
-    model: data.model || GROQ_MODEL,
-    usage: data.usage || null,
-  });
-}
-
-/* =========================================================
-   GEMINI VISION
-   ========================================================= */
-
-async function handleVision(body: any) {
-  if (!GEMINI_API_KEY) {
-    return json(
-      {
-        success: false,
-        provider: "gemini",
-        content: null,
-        error: {
-          message: "GEMINI_API_KEY روی سرور تنظیم نشده است.",
-        },
-      },
-      500,
-    );
-  }
-
-  const imageData = body?.imageData;
-  const mimeType = body?.mimeType || "image/jpeg";
-  const question =
-    body?.question ||
-    "این تصویر را دقیقاً تحلیل کن و هر چیزی که در آن می‌بینی توضیح بده.";
 
   if (
-    typeof imageData !== "string" ||
-    !imageData.length
+    typeof content !== "string" ||
+    !content.trim()
   ) {
-    return json(
-      {
-        success: false,
-        provider: "gemini",
-        content: null,
-        error: {
-          message: "imageData ارسال نشده است.",
-        },
-      },
-      400,
+
+    throw new Error(
+      "Groq پاسخ خالی برگرداند.",
     );
   }
 
-  const allowedTypes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "image/gif",
-  ];
 
-  if (!allowedTypes.includes(mimeType)) {
-    return json(
-      {
-        success: false,
-        provider: "gemini",
-        content: null,
-        error: {
-          message: "فرمت تصویر پشتیبانی نمی‌شود.",
-        },
-      },
-      400,
+  return {
+
+    success: true,
+
+    provider: "groq",
+
+    content: content.trim(),
+
+    model:
+      data.model ||
+      GROQ_MODEL,
+
+    usage:
+      data.usage ||
+      null,
+  };
+}
+
+
+// ============================================================
+// OPENROUTER
+// ============================================================
+
+async function callOpenRouter(
+  messages,
+  temperature = 0.2,
+  maxTokens = 1800,
+) {
+
+  if (!OPENROUTER_API_KEY) {
+
+    throw new Error(
+      "OPENROUTER_API_KEY روی سرور تنظیم نشده است.",
     );
   }
 
-  /*
-   * محدودیت امنیتی سمت Proxy
-   * حدود 12MB Base64
-   */
-  if (imageData.length > 12 * 1024 * 1024) {
-    return json(
-      {
-        success: false,
-        provider: "gemini",
-        content: null,
-        error: {
-          message: "حجم تصویر بیش از حد مجاز است.",
-        },
-      },
-      413,
-    );
-  }
 
-  const prompt = `
-تو بخش تحلیل تصویر «هندسیار» هستی.
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
 
-${question}
-
-اگر تصویر شامل سؤال هندسه است:
-
-1. متن سؤال را بخوان.
-2. شکل را بررسی کن.
-3. نام نقاط، اعداد، ضلع‌ها و زاویه‌های قابل مشاهده را استخراج کن.
-4. اطلاعاتی که واقعاً در تصویر دیده می‌شود را از حدس جدا کن.
-5. اگر بخشی ناخوانا است، حدس نزن.
-6. مسئله را مرحله‌به‌مرحله و آموزشی حل کن.
-7. پاسخ مناسب دانش‌آموز پایه هفتم تا نهم باشد.
-8. از LaTeX برای فرمول‌های ریاضی استفاده کن.
-
-اگر اطلاعات تصویر برای حل کافی نیست، دقیقاً بگو چه چیزی مشخص نیست.
-`;
-
-  const geminiUrl =
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
-  const geminiResponse = await fetch(
-    geminiUrl,
     {
       method: "POST",
+
       headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
+
+        "Content-Type":
+          "application/json",
+
+        "Authorization":
+          `Bearer ${OPENROUTER_API_KEY}`,
+
+        "HTTP-Referer":
+          "https://hendesyar.ir",
+
+        "X-Title":
+          "HendESyar",
       },
+
       body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: prompt,
-              },
-              {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: imageData,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 3000,
-        },
+
+        model:
+          OPENROUTER_MODEL,
+
+        messages,
+
+        temperature:
+          typeof temperature === "number"
+            ? Math.max(
+                0,
+                Math.min(temperature, 1),
+              )
+            : 0.2,
+
+        max_tokens:
+          Math.min(
+            Math.max(
+              Number(maxTokens) || 1800,
+              100,
+            ),
+            4000,
+          ),
+
+        stream: false,
       }),
     },
   );
 
-  const raw = await geminiResponse.text();
+
+  const raw =
+    await response.text();
+
 
   let data;
 
   try {
+
     data = JSON.parse(raw);
+
   } catch {
-    return json(
-      {
-        success: false,
-        provider: "gemini",
-        content: null,
-        error: {
-          message: "پاسخ Gemini معتبر نیست.",
-        },
-      },
-      502,
+
+    throw new Error(
+      "پاسخ OpenRouter قابل پردازش نیست.",
     );
   }
 
-  if (!geminiResponse.ok) {
-    console.error("Gemini error:", data);
 
-    return json(
-      {
-        success: false,
-        provider: "gemini",
-        content: null,
-        error: data.error || {
-          message: "خطا در ارتباط با Gemini.",
-        },
-        status: geminiResponse.status,
-      },
-      geminiResponse.status,
+  if (!response.ok) {
+
+    console.error(
+      "OPENROUTER ERROR:",
+      data,
+    );
+
+    throw new Error(
+      data?.error?.message ||
+      `OpenRouter HTTP ${response.status}`,
     );
   }
+
 
   const content =
-    data?.candidates?.[0]?.content?.parts
-      ?.map((part: any) => part.text || "")
-      .join("")
-      .trim();
+    data?.choices?.[0]
+      ?.message?.content;
 
-  if (!content) {
-    return json(
-      {
-        success: false,
-        provider: "gemini",
-        content: null,
-        error: {
-          message: "Gemini پاسخ خالی برگرداند.",
-        },
-      },
-      502,
+
+  if (
+    typeof content !== "string" ||
+    !content.trim()
+  ) {
+
+    throw new Error(
+      "OpenRouter پاسخ خالی برگرداند.",
     );
   }
 
-  return json({
+
+  return {
+
     success: true,
-    provider: "gemini",
-    content,
-    model: GEMINI_MODEL,
-    usage: data.usageMetadata || null,
-  });
+
+    provider: "openrouter",
+
+    content: content.trim(),
+
+    model:
+      data.model ||
+      OPENROUTER_MODEL,
+
+    usage:
+      data.usage ||
+      null,
+  };
 }
 
-/* =========================================================
-   SERVER
-   ========================================================= */
+
+// ============================================================
+// CHAT
+//
+// Primary:
+//   Groq
+//
+// Fallback:
+//   OpenRouter
+// ============================================================
+
+async function handleChat(body) {
+
+  if (
+    !Array.isArray(body?.messages)
+  ) {
+
+    return errorResponse(
+      "messages باید آرایه باشد.",
+      400,
+      "proxy",
+    );
+  }
+
+
+  const messages =
+    cleanMessages(
+      body.messages,
+    );
+
+
+  if (!messages.length) {
+
+    return errorResponse(
+      "هیچ پیام معتبری ارسال نشده است.",
+      400,
+      "proxy",
+    );
+  }
+
+
+  const temperature =
+    typeof body.temperature ===
+    "number"
+
+      ? body.temperature
+
+      : 0.2;
+
+
+  const maxTokens =
+    typeof body.max_tokens ===
+    "number"
+
+      ? body.max_tokens
+
+      : 1800;
+
+
+  // ----------------------------------------------------------
+  // GROQ
+  // ----------------------------------------------------------
+
+  if (GROQ_API_KEY) {
+
+    try {
+
+      const result =
+        await callGroq(
+          messages,
+          temperature,
+          maxTokens,
+        );
+
+      return json(
+        result,
+        200,
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Groq failed:",
+        error instanceof Error
+          ? error.message
+          : error,
+      );
+    }
+  }
+
+
+  // ----------------------------------------------------------
+  // OPENROUTER FALLBACK
+  // ----------------------------------------------------------
+
+  if (OPENROUTER_API_KEY) {
+
+    try {
+
+      const result =
+        await callOpenRouter(
+          messages,
+          temperature,
+          maxTokens,
+        );
+
+      return json(
+        result,
+        200,
+      );
+
+    } catch (error) {
+
+      console.error(
+        "OpenRouter failed:",
+        error instanceof Error
+          ? error.message
+          : error,
+      );
+    }
+  }
+
+
+  return errorResponse(
+    "هیچ‌کدام از سرویس‌های هوش مصنوعی در دسترس نیستند.",
+    503,
+    "proxy",
+  );
+}
+
+
+// ============================================================
+// SERVER
+// ============================================================
 
 const server = Deno.serve(
   {
     port: PORT,
   },
+
   async (req) => {
+
     try {
-      if (req.method === "OPTIONS") {
-        return new Response(null, {
-          status: 204,
-          headers: corsHeaders,
-        });
+
+      // ------------------------------------------------------
+      // CORS PREFLIGHT
+      // ------------------------------------------------------
+
+      if (
+        req.method ===
+        "OPTIONS"
+      ) {
+
+        return new Response(
+          null,
+          {
+            status: 204,
+            headers: corsHeaders,
+          },
+        );
       }
 
-      const url = new URL(req.url);
+
+      const url =
+        new URL(req.url);
+
+
+      // ------------------------------------------------------
+      // HEALTH CHECK
+      // ------------------------------------------------------
 
       if (
         req.method === "GET" &&
         url.pathname === "/"
       ) {
+
         return json({
+
           success: true,
-          service: "HendESyar AI Proxy",
-          status: "online",
+
+          service:
+            "HendESyar AI Proxy",
+
+          status:
+            "online",
+
           services: {
-            chat: Boolean(GROQ_API_KEY),
-            vision: Boolean(GEMINI_API_KEY),
+
+            chat:
+              Boolean(
+                GROQ_API_KEY ||
+                OPENROUTER_API_KEY,
+              ),
+
+            groq:
+              Boolean(
+                GROQ_API_KEY,
+              ),
+
+            openrouter:
+              Boolean(
+                OPENROUTER_API_KEY,
+              ),
+
+            gemini:
+              false,
           },
+
           models: {
-            groq: GROQ_MODEL,
-            gemini: GEMINI_MODEL,
+
+            groq:
+              GROQ_MODEL,
+
+            openrouter:
+              OPENROUTER_MODEL,
           },
+
         });
       }
+
+
+      // ------------------------------------------------------
+      // CHAT
+      // ------------------------------------------------------
 
       if (
         req.method === "POST" &&
         url.pathname === "/api/chat"
       ) {
-        const body = await parseJson(req);
-        return await handleChat(body);
+
+        const body =
+          await parseJson(req);
+
+        return await handleChat(
+          body,
+        );
       }
 
-      if (
-        req.method === "POST" &&
-        url.pathname === "/api/vision"
-      ) {
-        const body = await parseJson(req);
-        return await handleVision(body);
-      }
 
-      return json(
-        {
-          success: false,
-          error: {
-            message: "Endpoint پیدا نشد.",
-          },
-        },
+      // ------------------------------------------------------
+      // NOT FOUND
+      // ------------------------------------------------------
+
+      return errorResponse(
+        "Endpoint پیدا نشد.",
         404,
+        "proxy",
       );
-    } catch (error) {
-      console.error("SERVER ERROR:", error);
 
-      return json(
-        {
-          success: false,
-          error: {
-            message:
-              error instanceof Error
-                ? error.message
-                : "خطای ناشناخته سرور.",
-          },
-        },
+    } catch (error) {
+
+      console.error(
+        "SERVER ERROR:",
+        error,
+      );
+
+      return errorResponse(
+        error instanceof Error
+          ? error.message
+          : "خطای ناشناخته سرور.",
         500,
+        "proxy",
       );
     }
   },
 );
 
+
 console.log(
-  `🚀 HendESyar AI Proxy running on port ${PORT}`,
+  "🚀 HendESyar AI Proxy started",
 );
+
+console.log(
+  `Port: ${PORT}`,
+);
+
+console.log(
+  `Groq: ${
+    GROQ_API_KEY
+      ? "configured"
+      : "missing"
+  }`,
+);
+
+console.log(
+  `OpenRouter: ${
+    OPENROUTER_API_KEY
+      ? "configured"
+      : "missing"
+  }`,
+);
+
 
 await server.finished;
