@@ -17,11 +17,8 @@ const OPENROUTER_API_KEY =
 // CONFIG
 // ============================================================
 
-const GROQ_MODEL =
-  "llama-3.3-70b-versatile";
-
-const OPENROUTER_MODEL =
-  "openai/gpt-4o-mini";
+const GROQ_MODEL = "openai/gpt-oss-20b";
+const OPENROUTER_MODEL = "openrouter/free";
 
 const PORT = 8000;
 
