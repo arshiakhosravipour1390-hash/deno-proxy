@@ -1,17 +1,34 @@
-const GROQ_API_KEY = "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";
-const OPENROUTER_API_KEY = "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";
-const GEMINI_API_KEY = "AQ.Ab8RN6LpTM4RAbIbD8y1zfo6ottT2lXVlz57Yd7xRtV40Q2Yfg";
+
+// ============================================================
+// HENDESYAR AI PROXY - DENO
+// ============================================================
+
+// ============================================================
+// API KEYS
+// ============================================================
+
+const GROQ_API_KEY =
+    "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";
+
+const OPENROUTER_API_KEY =
+    "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";
+
+const GEMINI_API_KEY =
+    "AQ.Ab8RN6LpTM4RAbIbD8y1zfo6ottT2lXVlz57Yd7xRtV40Q2Yfg";
+
+
 // ============================================================
 // MODELS
 // ============================================================
 
-const GROQ_MODEL = "openai/gpt-oss-20b";
+const GEMINI_MODEL =
+    "gemini-3.7-flash";
 
-// مدل رایگان OpenRouter
-const OPENROUTER_MODEL = "openrouter/free";
+const GROQ_MODEL =
+    "openai/gpt-oss-20b";
 
-// Gemini
-const GEMINI_MODEL = "gemini-2.0-flash";
+const OPENROUTER_MODEL =
+    "openrouter/free";
 
 
 // ============================================================
@@ -31,13 +48,14 @@ const corsHeaders = {
 // JSON RESPONSE
 // ============================================================
 
-function json(data: unknown, status = 200) {
-
+function json(
+    data: unknown,
+    status = 200
+) {
     return new Response(
         JSON.stringify(data),
         {
             status,
-
             headers: {
                 ...corsHeaders,
                 "Content-Type":
@@ -49,81 +67,61 @@ function json(data: unknown, status = 200) {
 
 
 // ============================================================
-// READ JSON
+// SAFE JSON PARSE
 // ============================================================
 
-async function readJSON(request: Request) {
+async function readResponse(response: Response) {
+
+    const text =
+        await response.text();
 
     try {
-
-        return await request.json();
-
+        return JSON.parse(text);
     } catch {
-
-        return null;
-
+        return {
+            raw: text
+        };
     }
-
 }
 
 
 // ============================================================
-// GROQ
+// GROQ - TEXT
 // ============================================================
 
 async function callGroq(body: any) {
 
     try {
 
-        const response = await fetch(
-            "https://api.groq.com/openai/v1/chat/completions",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                "https://api.groq.com/openai/v1/chat/completions",
+                {
+                    method: "POST",
 
-                headers: {
-                    "Authorization":
-                        `Bearer ${GROQ_API_KEY}`,
+                    headers: {
+                        "Authorization":
+                            `Bearer ${GROQ_API_KEY}`,
 
-                    "Content-Type":
-                        "application/json"
-                },
+                        "Content-Type":
+                            "application/json"
+                    },
 
-                body: JSON.stringify({
+                    body: JSON.stringify({
+                        model:
+                            GROQ_MODEL,
 
-                    model: GROQ_MODEL,
+                        messages:
+                            body.messages,
 
-                    messages:
-                        body.messages,
+                        max_completion_tokens:
+                            body.max_tokens ?? 800
+                    })
+                }
+            );
 
-                    temperature:
-                        body.temperature ?? 0.3,
-
-                    max_tokens:
-                        body.max_tokens ?? 800
-
-                })
-            }
-        );
-
-
-        const text =
-            await response.text();
-
-
-        let data;
-
-        try {
-
-            data = JSON.parse(text);
-
-        } catch {
-
-            data = {
-                raw: text
-            };
-
-        }
-
+        const data =
+            await readResponse(response);
 
         console.log(
             "[GROQ]",
@@ -131,14 +129,12 @@ async function callGroq(body: any) {
             JSON.stringify(data)
         );
 
-
         const content =
             data?.choices?.[0]
-                ?.message?.content ?? null;
-
+                ?.message
+                ?.content ?? null;
 
         return {
-
             ok:
                 response.ok &&
                 !!content,
@@ -149,12 +145,10 @@ async function callGroq(body: any) {
             content,
 
             error:
-                response.ok
+                response.ok && content
                     ? null
                     : data
-
         };
-
 
     } catch (error) {
 
@@ -163,91 +157,63 @@ async function callGroq(body: any) {
             error
         );
 
-
         return {
-
             ok: false,
-
             status: 500,
-
             content: null,
-
             error:
-                String(error)
-
+                error instanceof Error
+                    ? error.message
+                    : String(error)
         };
-
     }
-
 }
 
 
 // ============================================================
-// OPENROUTER
+// OPENROUTER - TEXT
 // ============================================================
 
 async function callOpenRouter(body: any) {
 
     try {
 
-        const response = await fetch(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                "https://openrouter.ai/api/v1/chat/completions",
+                {
+                    method: "POST",
 
-                headers: {
+                    headers: {
+                        "Authorization":
+                            `Bearer ${OPENROUTER_API_KEY}`,
 
-                    "Authorization":
-                        `Bearer ${OPENROUTER_API_KEY}`,
+                        "Content-Type":
+                            "application/json",
 
-                    "Content-Type":
-                        "application/json",
+                        "HTTP-Referer":
+                            "https://hendesyar.ir",
 
-                    "HTTP-Referer":
-                        "https://hendesyar.ir",
+                        "X-Title":
+                            "Hendesyar"
+                    },
 
-                    "X-Title":
-                        "Hendesyar"
+                    body: JSON.stringify({
 
-                },
+                        model:
+                            OPENROUTER_MODEL,
 
-                body: JSON.stringify({
+                        messages:
+                            body.messages,
 
-                    model:
-                        OPENROUTER_MODEL,
+                        max_tokens:
+                            body.max_tokens ?? 800
+                    })
+                }
+            );
 
-                    messages:
-                        body.messages,
-
-                    temperature:
-                        body.temperature ?? 0.3,
-
-                    max_tokens:
-                        body.max_tokens ?? 800
-
-                })
-            }
-        );
-
-
-        const text =
-            await response.text();
-
-
-        let data;
-
-        try {
-
-            data = JSON.parse(text);
-
-        } catch {
-
-            data = {
-                raw: text
-            };
-
-        }
-
+        const data =
+            await readResponse(response);
 
         console.log(
             "[OPENROUTER]",
@@ -255,14 +221,12 @@ async function callOpenRouter(body: any) {
             JSON.stringify(data)
         );
 
-
         const content =
             data?.choices?.[0]
-                ?.message?.content ?? null;
-
+                ?.message
+                ?.content ?? null;
 
         return {
-
             ok:
                 response.ok &&
                 !!content,
@@ -273,13 +237,10 @@ async function callOpenRouter(body: any) {
             content,
 
             error:
-                response.ok &&
-                content
+                response.ok && content
                     ? null
                     : data
-
         };
-
 
     } catch (error) {
 
@@ -288,170 +249,66 @@ async function callOpenRouter(body: any) {
             error
         );
 
-
         return {
-
             ok: false,
-
             status: 500,
-
             content: null,
-
             error:
-                String(error)
-
+                error instanceof Error
+                    ? error.message
+                    : String(error)
         };
-
     }
-
 }
 
 
 // ============================================================
-// تبدیل پیام‌ها به متن برای Gemini
+// GEMINI - TEXT
 // ============================================================
 
-function convertToGemini(
-    messages: any[]
-) {
-
-    if (!Array.isArray(messages)) {
-
-        return "";
-
-    }
-
-
-    return messages
-        .map((message: any) => {
-
-            let role = "دانش‌آموز";
-
-
-            if (
-                message.role === "system"
-            ) {
-
-                role = "دستور سیستم";
-
-            }
-
-            else if (
-                message.role === "assistant"
-            ) {
-
-                role = "دستیار";
-
-            }
-
-
-            return (
-                role +
-                ":\n" +
-                String(
-                    message.content ?? ""
-                )
-            );
-
-        })
-        .join("\n\n");
-
-}
-
-
-// ============================================================
-// GEMINI TEXT
-// ============================================================
-
-async function callGemini(
-    body: any
-) {
+async function callGemini(body: any) {
 
     try {
 
-        const prompt =
-            convertToGemini(
+        const contents =
+            convertMessagesToGemini(
                 body.messages
             );
 
+        const response =
+            await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+                {
+                    method: "POST",
 
-        const response = await fetch(
+                    headers: {
+                        "Content-Type":
+                            "application/json",
 
-            `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+                        "x-goog-api-key":
+                            GEMINI_API_KEY
+                    },
 
-            {
+                    body: JSON.stringify({
 
-                method: "POST",
+                        contents,
 
-                headers: {
+                        generationConfig: {
 
-                    "Content-Type":
-                        "application/json",
+                            maxOutputTokens:
+                                body.max_tokens ?? 800,
 
-                    // روش رسمی API key
-                    "x-goog-api-key":
-                        GEMINI_API_KEY
-
-                },
-
-
-                body: JSON.stringify({
-
-                    contents: [
-
-                        {
-
-                            role: "user",
-
-                            parts: [
-
-                                {
-                                    text: prompt
-                                }
-
-                            ]
-
+                            thinkingConfig: {
+                                thinkingLevel:
+                                    "low"
+                            }
                         }
+                    })
+                }
+            );
 
-                    ],
-
-
-                    generationConfig: {
-
-                        temperature:
-                            body.temperature ?? 0.3,
-
-                        maxOutputTokens:
-                            body.max_tokens ?? 800
-
-                    }
-
-                })
-
-            }
-
-        );
-
-
-        const text =
-            await response.text();
-
-
-        let data;
-
-        try {
-
-            data =
-                JSON.parse(text);
-
-        } catch {
-
-            data = {
-                raw: text
-            };
-
-        }
-
+        const data =
+            await readResponse(response);
 
         console.log(
             "[GEMINI]",
@@ -459,16 +316,8 @@ async function callGemini(
             JSON.stringify(data)
         );
 
-
         const content =
-            data?.candidates?.[0]
-                ?.content?.parts
-                ?.map(
-                    (part: any) =>
-                        part.text || ""
-                )
-                .join("") || null;
-
+            extractGeminiText(data);
 
         return {
 
@@ -482,13 +331,10 @@ async function callGemini(
             content,
 
             error:
-                response.ok &&
-                content
+                response.ok && content
                     ? null
                     : data
-
         };
-
 
     } catch (error) {
 
@@ -497,22 +343,83 @@ async function callGemini(
             error
         );
 
-
         return {
-
             ok: false,
-
             status: 500,
-
             content: null,
-
             error:
-                String(error)
-
+                error instanceof Error
+                    ? error.message
+                    : String(error)
         };
-
     }
+}
 
+
+// ============================================================
+// GEMINI MESSAGE CONVERTER
+// ============================================================
+
+function convertMessagesToGemini(
+    messages: any[]
+) {
+
+    return messages
+        .filter(
+            (message: any) =>
+                message &&
+                message.content
+        )
+        .map(
+            (message: any) => {
+
+                let role =
+                    "user";
+
+                if (
+                    message.role ===
+                    "assistant"
+                ) {
+                    role =
+                        "model";
+                }
+
+                return {
+                    role,
+
+                    parts: [
+                        {
+                            text:
+                                String(
+                                    message.content
+                                )
+                        }
+                    ]
+                };
+            }
+        );
+}
+
+
+// ============================================================
+// GEMINI TEXT EXTRACTOR
+// ============================================================
+
+function extractGeminiText(
+    data: any
+) {
+
+    return (
+        data?.candidates?.[0]
+            ?.content
+            ?.parts
+            ?.map(
+                (part: any) =>
+                    part?.text || ""
+            )
+            .join("")
+            .trim() || null
+    );
 }
 
 
@@ -526,180 +433,140 @@ async function callGeminiVision(
 
     try {
 
-        const imageData =
-            body.imageData;
-
-        const mimeType =
-            body.mimeType ||
-            "image/jpeg";
-
-        const question =
-            body.question ||
-            "این تصویر را توضیح بده";
-
-
-        // ----------------------------------------------------
-        // اعتبارسنجی
-        // ----------------------------------------------------
-
-        if (
-            typeof imageData !== "string" ||
-            !imageData.trim()
-        ) {
+        if (!body.imageData) {
 
             return {
-
                 ok: false,
-
                 status: 400,
-
                 content: null,
 
                 error: {
                     message:
                         "imageData ارسال نشده است"
                 }
-
             };
-
         }
 
+
+        const mimeType =
+            body.mimeType ||
+            "image/jpeg";
+
+
+        let base64Data =
+            String(body.imageData);
+
+
+        // ----------------------------------------------------
+        // حذف data:image/jpeg;base64,
+        // ----------------------------------------------------
 
         if (
-            !mimeType.startsWith("image/")
+            base64Data.startsWith(
+                "data:"
+            )
         ) {
 
-            return {
+            const comma =
+                base64Data.indexOf(",");
 
-                ok: false,
+            if (comma !== -1) {
 
-                status: 400,
-
-                content: null,
-
-                error: {
-                    message:
-                        "mimeType باید از نوع image باشد"
-                }
-
-            };
-
+                base64Data =
+                    base64Data.substring(
+                        comma + 1
+                    );
+            }
         }
 
 
-        // اگر data:image/...;base64,... ارسال شده
-        // قسمت header را حذف می‌کنیم.
+        // ----------------------------------------------------
+        // حذف فاصله / newline
+        // ----------------------------------------------------
 
-        const cleanBase64 =
-            imageData
-                .replace(
-                    /^data:[^;]+;base64,/,
-                    ""
-                )
-                .replace(
-                    /\s/g,
-                    ""
-                );
+        base64Data =
+            base64Data
+                .replace(/\s/g, "");
+
+
+        const question =
+            body.question ||
+            "این تصویر را دقیقاً توضیح بده.";
 
 
         // ----------------------------------------------------
-        // Gemini request
+        // Gemini Vision Request
         // ----------------------------------------------------
 
-        const response = await fetch(
+        const payload = {
 
-            `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+            contents: [
 
-            {
+                {
+                    role: "user",
 
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "application/json",
-
-                    "x-goog-api-key":
-                        GEMINI_API_KEY
-
-                },
-
-
-                body: JSON.stringify({
-
-                    contents: [
+                    parts: [
 
                         {
+                            inlineData: {
+                                mimeType,
+                                data:
+                                    base64Data
+                            }
+                        },
 
-                            role: "user",
-
-                            parts: [
-
-                                {
-
-                                    inline_data: {
-
-                                        mime_type:
-                                            mimeType,
-
-                                        data:
-                                            cleanBase64
-
-                                    }
-
-                                },
-
-                                {
-
-                                    text:
-                                        question
-
-                                }
-
-                            ]
-
+                        {
+                            text:
+                                question
                         }
 
-                    ],
+                    ]
+                }
 
+            ],
 
-                    generationConfig: {
+            generationConfig: {
 
-                        temperature:
-                            body.temperature ??
-                            0.3,
+                maxOutputTokens:
+                    body.max_tokens ??
+                    1200,
 
-                        maxOutputTokens:
-                            body.max_tokens ??
-                            1000
-
-                    }
-
-                })
-
+                thinkingConfig: {
+                    thinkingLevel:
+                        body.mode ===
+                        "deep"
+                            ? "medium"
+                            : "low"
+                }
             }
-
-        );
-
-
-        const text =
-            await response.text();
+        };
 
 
-        let data;
+        const response =
+            await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+                {
+                    method: "POST",
 
-        try {
+                    headers: {
 
-            data =
-                JSON.parse(text);
+                        "Content-Type":
+                            "application/json",
 
-        } catch {
+                        "x-goog-api-key":
+                            GEMINI_API_KEY
+                    },
 
-            data = {
-                raw: text
-            };
+                    body:
+                        JSON.stringify(
+                            payload
+                        )
+                }
+            );
 
-        }
+
+        const data =
+            await readResponse(response);
 
 
         console.log(
@@ -710,13 +577,7 @@ async function callGeminiVision(
 
 
         const content =
-            data?.candidates?.[0]
-                ?.content?.parts
-                ?.map(
-                    (part: any) =>
-                        part.text || ""
-                )
-                .join("") || null;
+            extractGeminiText(data);
 
 
         return {
@@ -731,13 +592,10 @@ async function callGeminiVision(
             content,
 
             error:
-                response.ok &&
-                content
+                response.ok && content
                     ? null
                     : data
-
         };
-
 
     } catch (error) {
 
@@ -745,7 +603,6 @@ async function callGeminiVision(
             "[GEMINI VISION ERROR]",
             error
         );
-
 
         return {
 
@@ -756,40 +613,39 @@ async function callGeminiVision(
             content: null,
 
             error:
-                String(error)
-
+                error instanceof Error
+                    ? error.message
+                    : String(error)
         };
-
     }
-
 }
 
 
 // ============================================================
-// CHAT HANDLER
+// CHAT
 // ============================================================
 
 async function handleChat(
     request: Request
 ) {
 
-    const body =
-        await readJSON(request);
+    let body;
 
+    try {
 
-    if (!body) {
+        body =
+            await request.json();
+
+    } catch {
 
         return json(
             {
                 success: false,
-
                 error:
                     "JSON نامعتبر است"
             },
-
             400
         );
-
     }
 
 
@@ -802,14 +658,11 @@ async function handleChat(
         return json(
             {
                 success: false,
-
                 error:
-                    "messages باید آرایه باشد"
+                    "messages ارسال نشده است"
             },
-
             400
         );
-
     }
 
 
@@ -817,95 +670,81 @@ async function handleChat(
 
 
     // ========================================================
-    // GROQ
+    // 1. GROQ
     // ========================================================
 
     console.log(
         "========== GROQ =========="
     );
 
-
     results.groq =
         await callGroq(body);
 
 
     if (
-        results.groq.ok
+        results.groq.ok &&
+        results.groq.content
     ) {
 
         return json({
-
             success: true,
-
             provider: "groq",
-
             content:
                 results.groq.content
-
         });
-
     }
 
 
     // ========================================================
-    // OPENROUTER
+    // 2. OPENROUTER
     // ========================================================
 
     console.log(
         "========== OPENROUTER =========="
     );
 
-
     results.openrouter =
         await callOpenRouter(body);
 
 
     if (
-        results.openrouter.ok
+        results.openrouter.ok &&
+        results.openrouter.content
     ) {
 
         return json({
-
             success: true,
-
-            provider: "openrouter",
-
+            provider:
+                "openrouter",
             content:
                 results.openrouter.content
-
         });
-
     }
 
 
     // ========================================================
-    // GEMINI
+    // 3. GEMINI
     // ========================================================
 
     console.log(
         "========== GEMINI =========="
     );
 
-
     results.gemini =
         await callGemini(body);
 
 
     if (
-        results.gemini.ok
+        results.gemini.ok &&
+        results.gemini.content
     ) {
 
         return json({
-
             success: true,
-
             provider: "gemini",
-
             content:
                 results.gemini.content
-
         });
-
     }
 
 
@@ -914,55 +753,63 @@ async function handleChat(
     // ========================================================
 
     return json(
-
         {
-
             success: false,
 
-            error:
+            message:
                 "تمام Providerها شکست خوردند",
 
             results,
 
             timestamp:
                 new Date().toISOString()
-
         },
 
         502
-
     );
-
 }
 
 
 // ============================================================
-// VISION HANDLER
+// VISION
 // ============================================================
 
 async function handleVision(
     request: Request
 ) {
 
-    const body =
-        await readJSON(request);
+    let body;
 
+    try {
 
-    if (!body) {
+        body =
+            await request.json();
+
+    } catch {
 
         return json(
-
             {
                 success: false,
-
                 error:
                     "JSON نامعتبر است"
             },
-
             400
-
         );
+    }
 
+
+    if (
+        !body.imageData
+    ) {
+
+        return json(
+            {
+                success: false,
+                error:
+                    "imageData ارسال نشده است"
+            },
+            400
+        );
     }
 
 
@@ -972,51 +819,33 @@ async function handleVision(
         );
 
 
-    if (
-        result.ok
-    ) {
+    return json(
+        {
+            success:
+                result.ok,
 
-        return json({
-
-            success: true,
-
-            provider: "gemini",
+            provider:
+                "gemini",
 
             content:
-                result.content
-
-        });
-
-    }
-
-
-    return json(
-
-        {
-
-            success: false,
-
-            provider: "gemini",
+                result.content,
 
             error:
                 result.error,
 
             status:
                 result.status
-
         },
 
-        result.status >= 400
-            ? result.status
-            : 502
-
+        result.ok
+            ? 200
+            : result.status
     );
-
 }
 
 
 // ============================================================
-// PROVIDER TEST
+// TEST
 // ============================================================
 
 async function handleTest(
@@ -1028,18 +857,13 @@ async function handleTest(
     ) {
 
         return json(
-
             {
                 success: false,
-
                 error:
                     "روش درخواست باید POST باشد"
             },
-
             405
-
         );
-
     }
 
 
@@ -1048,37 +872,27 @@ async function handleTest(
         messages: [
 
             {
-
                 role: "system",
 
                 content:
                     "تو یک دستیار فارسی هستی."
-
             },
 
             {
-
                 role: "user",
 
                 content:
                     "فقط بنویس: تست موفق بود"
-
             }
 
         ],
 
-        temperature: 0.2,
-
         max_tokens: 100
-
     };
 
 
-    const results: any = {};
-
-
     console.log(
-        "================================"
+        "===================================="
     );
 
     console.log(
@@ -1086,18 +900,24 @@ async function handleTest(
     );
 
     console.log(
-        "================================"
+        "===================================="
     );
 
 
+    const results: any = {};
+
+
+    // Test Groq
     results.groq =
         await callGroq(body);
 
 
+    // Test OpenRouter
     results.openrouter =
         await callOpenRouter(body);
 
 
+    // Test Gemini
     results.gemini =
         await callGemini(body);
 
@@ -1113,9 +933,7 @@ async function handleTest(
 
         timestamp:
             new Date().toISOString()
-
     });
-
 }
 
 
@@ -1135,6 +953,18 @@ function handleHealth() {
         service:
             "hendesyar-ai",
 
+        models: {
+
+            groq:
+                GROQ_MODEL,
+
+            openrouter:
+                OPENROUTER_MODEL,
+
+            gemini:
+                GEMINI_MODEL
+        },
+
         providers: {
 
             groq:
@@ -1145,204 +975,176 @@ function handleHealth() {
 
             gemini:
                 !!GEMINI_API_KEY
-
         },
 
         timestamp:
             new Date().toISOString()
-
     });
-
 }
 
 
 // ============================================================
-// MAIN ROUTER
+// SERVER
 // ============================================================
 
 async function handleRequest(
     request: Request
 ) {
 
-    // --------------------------------------------------------
+    // ========================================================
     // CORS
-    // --------------------------------------------------------
+    // ========================================================
 
     if (
-        request.method === "OPTIONS"
+        request.method ===
+        "OPTIONS"
     ) {
 
         return new Response(
             null,
             {
                 status: 204,
-
                 headers:
                     corsHeaders
             }
         );
-
     }
 
 
     const url =
-        new URL(request.url);
+        new URL(
+            request.url
+        );
 
 
     try {
 
-        // ----------------------------------------------------
+        // ====================================================
         // HEALTH
-        // ----------------------------------------------------
+        // ====================================================
 
         if (
-            url.pathname === "/health"
+            url.pathname ===
+            "/health"
         ) {
 
             return handleHealth();
-
         }
 
 
-        // ----------------------------------------------------
+        // ====================================================
         // TEST
-        // ----------------------------------------------------
+        // ====================================================
 
         if (
-            url.pathname === "/api/test"
+            url.pathname ===
+            "/api/test"
         ) {
 
             return handleTest(
                 request
             );
-
         }
 
 
-        // ----------------------------------------------------
+        // ====================================================
         // CHAT
-        // ----------------------------------------------------
+        // ====================================================
 
         if (
-            url.pathname === "/api/chat"
+            url.pathname ===
+            "/api/chat"
         ) {
 
             if (
-                request.method !== "POST"
+                request.method !==
+                "POST"
             ) {
 
                 return json(
-
                     {
                         success: false,
-
                         error:
                             "روش درخواست باید POST باشد"
                     },
-
                     405
-
                 );
-
             }
-
 
             return handleChat(
                 request
             );
-
         }
 
 
-        // ----------------------------------------------------
+        // ====================================================
         // VISION
-        // ----------------------------------------------------
+        // ====================================================
 
         if (
-            url.pathname === "/api/vision"
+            url.pathname ===
+            "/api/vision"
         ) {
 
             if (
-                request.method !== "POST"
+                request.method !==
+                "POST"
             ) {
 
                 return json(
-
                     {
                         success: false,
-
                         error:
                             "روش درخواست باید POST باشد"
                     },
-
                     405
-
                 );
-
             }
-
 
             return handleVision(
                 request
             );
-
         }
 
 
-        // ----------------------------------------------------
+        // ====================================================
         // 404
-        // ----------------------------------------------------
+        // ====================================================
 
         return json(
-
             {
                 success: false,
-
                 error:
-                    "مسیر نامعتبر",
-
-                path:
-                    url.pathname
-
+                    "مسیر نامعتبر"
             },
-
             404
-
         );
-
 
     } catch (error) {
 
         console.error(
-            "SERVER ERROR:",
+            "[SERVER ERROR]",
             error
         );
 
-
         return json(
-
             {
-
                 success: false,
 
                 error:
                     error instanceof Error
                         ? error.message
                         : String(error)
-
             },
 
             500
-
         );
-
     }
-
 }
 
 
 // ============================================================
-// START SERVER
+// START
 // ============================================================
 
 Deno.serve(
