@@ -1,6 +1,6 @@
-const GROQ_API_KEY = "gsk_FS8EBS8GtrTDAXZTuKmdjWGdyb3FYrycic7pDrT6h3rDWdyWCDf81";
-const OPENROUTER_API_KEY = "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";
-const GEMINI_API_KEY = "AQ.Ab8RN6K-U5qy3SZcXIa1UrL2yabRuy1uYD5n8cbozrYMWvq3Yw";
+const GROQ_API_KEY = "YOUR_GROQ_API_KEY";
+const OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY";
+const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 function json(data: unknown, status = 200) {
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify(data, null, 2), {
         status,
         headers: {
             ...corsHeaders,
@@ -19,12 +19,20 @@ function json(data: unknown, status = 200) {
     });
 }
 
+function logProvider(
+    provider: string,
+    status: number,
+    data: any,
+    extra = ""
+) {
+    console.log(
+        `[AI:${provider}] ${status} ${extra}`,
+        JSON.stringify(data)
+    );
+}
+
 async function safeJson(response: Response) {
     const text = await response.text();
-
-    if (!text) {
-        return {};
-    }
 
     try {
         return JSON.parse(text);
@@ -35,12 +43,15 @@ async function safeJson(response: Response) {
     }
 }
 
-/* =========================
-   GROQ
-========================= */
-
 async function callGroq(body: any) {
+    console.log("[AI:GROQ] Request started");
+
     try {
+        const payload = {
+            ...body,
+            model: "llama-3.3-70b-versatile"
+        };
+
         const response = await fetch(
             "https://api.groq.com/openai/v1/chat/completions",
             {
@@ -49,24 +60,27 @@ async function callGroq(body: any) {
                     "Authorization": `Bearer ${GROQ_API_KEY}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
-                    model: "llama-3.3-70b-versatile",
-                    messages: body.messages,
-                    temperature: body.temperature ?? 0.25,
-                    max_tokens: body.max_tokens ?? 1800
-                })
+                body: JSON.stringify(payload)
             }
         );
 
         const data = await safeJson(response);
+
+        logProvider(
+            "GROQ",
+            response.status,
+            data,
+            response.ok ? "SUCCESS" : "FAILED"
+        );
 
         return {
             ok: response.ok,
             status: response.status,
             data
         };
-
     } catch (error) {
+        console.error("[AI:GROQ] NETWORK ERROR:", error);
+
         return {
             ok: false,
             status: 0,
@@ -79,12 +93,15 @@ async function callGroq(body: any) {
     }
 }
 
-/* =========================
-   OPENROUTER
-========================= */
-
 async function callOpenRouter(body: any) {
+    console.log("[AI:OPENROUTER] Request started");
+
     try {
+        const payload = {
+            ...body,
+            model: "meta-llama/llama-3.3-70b-instruct:free"
+        };
+
         const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
             {
@@ -95,24 +112,27 @@ async function callOpenRouter(body: any) {
                     "HTTP-Referer": "https://hendesyar.ir",
                     "X-Title": "Hendesyar"
                 },
-                body: JSON.stringify({
-                    model: "meta-llama/llama-3.3-70b-instruct:free",
-                    messages: body.messages,
-                    temperature: body.temperature ?? 0.25,
-                    max_tokens: body.max_tokens ?? 1800
-                })
+                body: JSON.stringify(payload)
             }
         );
 
         const data = await safeJson(response);
 
+        logProvider(
+            "OPENROUTER",
+            response.status,
+            data,
+            response.ok ? "SUCCESS" : "FAILED"
+        );
+
         return {
             ok: response.ok,
             status: response.status,
             data
         };
-
     } catch (error) {
+        console.error("[AI:OPENROUTER] NETWORK ERROR:", error);
+
         return {
             ok: false,
             status: 0,
@@ -125,34 +145,39 @@ async function callOpenRouter(body: any) {
     }
 }
 
-/* =========================
-   GEMINI
-========================= */
-
 async function callGemini(body: any) {
-    try {
-        const url =
-            "https://generativelanguage.googleapis.com/v1beta/models/" +
-            "gemini-2.0-flash:generateContent?key=" +
-            encodeURIComponent(GEMINI_API_KEY);
+    console.log("[AI:GEMINI] Request started");
 
-        const response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(body)
-        });
+    try {
+        const response = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" +
+            encodeURIComponent(GEMINI_API_KEY),
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(body)
+            }
+        );
 
         const data = await safeJson(response);
 
+        logProvider(
+            "GEMINI",
+            response.status,
+            data,
+            response.ok ? "SUCCESS" : "FAILED"
+        );
+
         return {
             ok: response.ok,
             status: response.status,
             data
         };
-
     } catch (error) {
+        console.error("[AI:GEMINI] NETWORK ERROR:", error);
+
         return {
             ok: false,
             status: 0,
@@ -165,11 +190,17 @@ async function callGemini(body: any) {
     }
 }
 
-/* =========================
-   MAIN HANDLER
-========================= */
+function extractOpenAIContent(data: any) {
+    return data?.choices?.[0]?.message?.content || null;
+}
 
-async function handleRequest(request: Request): Promise<Response> {
+function extractGeminiContent(data: any) {
+    return data?.candidates?.[0]?.content?.parts
+        ?.map((p: any) => p.text || "")
+        .join("") || null;
+}
+
+async function handleRequest(request: Request) {
 
     if (request.method === "OPTIONS") {
         return new Response(null, {
@@ -180,13 +211,18 @@ async function handleRequest(request: Request): Promise<Response> {
 
     const url = new URL(request.url);
 
+    console.log(
+        `[REQUEST] ${request.method} ${url.pathname}`
+    );
+
     try {
 
-        /* =========================
-           HEALTH
-        ========================= */
+        // --------------------------------
+        // HEALTH
+        // --------------------------------
 
         if (url.pathname === "/health") {
+
             return json({
                 success: true,
                 status: "ok",
@@ -200,9 +236,105 @@ async function handleRequest(request: Request): Promise<Response> {
             });
         }
 
-        /* =========================
-           CHAT
-        ========================= */
+        // --------------------------------
+        // PROVIDER TEST
+        // --------------------------------
+
+        if (url.pathname === "/api/test") {
+
+            if (request.method !== "GET" && request.method !== "POST") {
+                return json({
+                    success: false,
+                    error: "روش درخواست باید GET یا POST باشد"
+                }, 405);
+            }
+
+            const testMessages = [
+                {
+                    role: "system",
+                    content: "You are a test assistant."
+                },
+                {
+                    role: "user",
+                    content: "Reply with exactly: HENDESYAR_OK"
+                }
+            ];
+
+            const results: any = {};
+
+            // GROQ
+
+            const groq = await callGroq({
+                messages: testMessages,
+                temperature: 0,
+                max_tokens: 20
+            });
+
+            results.groq = {
+                ok: groq.ok,
+                status: groq.status,
+                content: extractOpenAIContent(groq.data),
+                error: groq.ok ? null : groq.data
+            };
+
+            // OPENROUTER
+
+            const openrouter = await callOpenRouter({
+                messages: testMessages,
+                temperature: 0,
+                max_tokens: 20
+            });
+
+            results.openrouter = {
+                ok: openrouter.ok,
+                status: openrouter.status,
+                content: extractOpenAIContent(openrouter.data),
+                error: openrouter.ok ? null : openrouter.data
+            };
+
+            // GEMINI
+
+            const gemini = await callGemini({
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: "Reply with exactly: HENDESYAR_OK"
+                            }
+                        ]
+                    }
+                ],
+                generationConfig: {
+                    temperature: 0,
+                    maxOutputTokens: 20
+                }
+            });
+
+            results.gemini = {
+                ok: gemini.ok,
+                status: gemini.status,
+                content: extractGeminiContent(gemini.data),
+                error: gemini.ok ? null : gemini.data
+            };
+
+            const successful =
+                groq.ok ||
+                openrouter.ok ||
+                gemini.ok;
+
+            return json({
+                success: successful,
+                message: successful
+                    ? "حداقل یک Provider سالم است"
+                    : "تمام Providerها شکست خوردند",
+                results,
+                timestamp: new Date().toISOString()
+            }, successful ? 200 : 502);
+        }
+
+        // --------------------------------
+        // CHAT
+        // --------------------------------
 
         if (url.pathname === "/api/chat") {
 
@@ -224,81 +356,92 @@ async function handleRequest(request: Request): Promise<Response> {
                 }, 400);
             }
 
-            if (
-                !body ||
-                !Array.isArray(body.messages) ||
-                body.messages.length === 0
-            ) {
+            if (!body?.messages || !Array.isArray(body.messages)) {
                 return json({
                     success: false,
-                    error: "messages ارسال نشده یا نامعتبر است"
+                    error: "messages ارسال نشده یا آرایه نیست"
                 }, 400);
             }
 
-            /*
-             * اول Groq
-             */
+            console.log(
+                `[CHAT] messages=${body.messages.length}`
+            );
+
+            // --------------------------------
+            // 1. GROQ
+            // --------------------------------
 
             const groq = await callGroq(body);
 
-            if (
-                groq.ok &&
-                groq.data?.choices?.[0]?.message?.content
-            ) {
+            const groqContent =
+                extractOpenAIContent(groq.data);
+
+            if (groq.ok && groqContent) {
+
+                console.log(
+                    "[CHAT] Provider selected: GROQ"
+                );
+
                 return json({
                     success: true,
                     provider: "groq",
-                    content: groq.data.choices[0].message.content
+                    content: groqContent
                 });
             }
 
-            /*
-             * اگر Groq شکست خورد → OpenRouter
-             */
+            console.warn(
+                "[CHAT] Groq failed, switching to OpenRouter"
+            );
 
-            const openrouter = await callOpenRouter(body);
+            // --------------------------------
+            // 2. OPENROUTER
+            // --------------------------------
 
-            if (
-                openrouter.ok &&
-                openrouter.data?.choices?.[0]?.message?.content
-            ) {
+            const openrouter =
+                await callOpenRouter(body);
+
+            const openrouterContent =
+                extractOpenAIContent(openrouter.data);
+
+            if (openrouter.ok && openrouterContent) {
+
+                console.log(
+                    "[CHAT] Provider selected: OPENROUTER"
+                );
+
                 return json({
                     success: true,
                     provider: "openrouter",
-                    content:
-                        openrouter.data.choices[0].message.content
+                    content: openrouterContent
                 });
             }
 
-            /*
-             * هیچ Providerای جواب نداده
-             */
+            console.error(
+                "[CHAT] Groq + OpenRouter failed"
+            );
 
             return json({
                 success: false,
                 provider: "none",
-
                 error: {
                     message: "تمام سرویس‌های متنی شکست خوردند",
 
                     groq: {
                         status: groq.status,
-                        error: groq.data?.error || groq.data
+                        error: groq.data
                     },
 
                     openrouter: {
                         status: openrouter.status,
-                        error:
-                            openrouter.data?.error ||
-                            openrouter.data
+                        error: openrouter.data
                     }
                 }
             }, 502);
         }
 
-        /* =========================
-           VISION
-        ========================= */
+        // --------------------------------
+        // VISION
+        // --------------------------------
 
         if (url.pathname === "/api/vision") {
 
@@ -337,11 +480,10 @@ async function handleRequest(request: Request): Promise<Response> {
             }
 
             const prompt = `
-تو دستیار هوشمند «هندسیار» هستی؛
+تو دستیار هوشمند هندسیار هستی؛
 یک معلم ریاضی فارسی‌زبان برای دانش‌آموزان پایه هشتم و نهم.
 
 تمرکز اصلی:
-
 - هندسه
 - مثلث‌ها
 - هم‌نهشتی
@@ -353,19 +495,17 @@ async function handleRequest(request: Request): Promise<Response> {
 این تصویر یک سؤال یا شکل هندسی است.
 
 ${question
-    ? `توضیح دانش‌آموز:
-${question}`
-    : ""
-}
+    ? `توضیح دانش‌آموز: ${question}`
+    : ""}
 
 دستورها:
 
-1. ابتدا متن سؤال و اطلاعات شکل را با دقت بخوان.
+1. ابتدا متن سؤال و اطلاعات شکل را دقیق بخوان.
 2. نقاط، ضلع‌ها، زاویه‌ها و علامت‌های شکل را بررسی کن.
 3. اگر اطلاعات کافی نیست، حدس نزن.
 4. راه‌حل را مرحله‌به‌مرحله توضیح بده.
-5. فرمول‌های ریاضی را با LaTeX بنویس.
-6. پاسخ را فارسی و مناسب پایه هشتم و نهم بنویس.
+5. فرمول‌ها را با LaTeX بنویس.
+6. فارسی روان و مناسب پایه هشتم و نهم استفاده کن.
 7. در پایان یک سؤال کوتاه برای مشارکت دانش‌آموز مطرح کن.
 `;
 
@@ -385,42 +525,38 @@ ${question}`
                         ]
                     }
                 ],
-
                 generationConfig: {
                     temperature: 0.25,
                     maxOutputTokens: 1800
                 }
             });
 
-            if (
-                gemini.ok &&
-                gemini.data?.candidates?.[0]?.content?.parts?.[0]?.text
-            ) {
+            const content =
+                extractGeminiContent(gemini.data);
+
+            if (gemini.ok && content) {
+
+                console.log(
+                    "[VISION] Provider selected: GEMINI"
+                );
+
                 return json({
                     success: true,
                     provider: "gemini",
-                    content:
-                        gemini.data.candidates[0]
-                            .content.parts[0].text
+                    content
                 });
             }
 
             return json({
                 success: false,
                 provider: "gemini",
-
-                error: {
-                    status: gemini.status,
-                    details:
-                        gemini.data?.error ||
-                        gemini.data
-                }
+                error: gemini.data
             }, 502);
         }
 
-        /* =========================
-           404
-        ========================= */
+        // --------------------------------
+        // 404
+        // --------------------------------
 
         return json({
             success: false,
@@ -430,14 +566,26 @@ ${question}`
 
     } catch (error) {
 
+        console.error(
+            "[SERVER ERROR]",
+            error
+        );
+
         return json({
             success: false,
-            error:
-                error instanceof Error
-                    ? error.message
-                    : String(error)
+            error: error instanceof Error
+                ? error.message
+                : String(error)
         }, 500);
     }
 }
+
+console.log("================================");
+console.log("🚀 Hendesyar AI Proxy Started");
+console.log("================================");
+console.log("Groq:", Boolean(GROQ_API_KEY));
+console.log("OpenRouter:", Boolean(OPENROUTER_API_KEY));
+console.log("Gemini:", Boolean(GEMINI_API_KEY));
+console.log("================================");
 
 Deno.serve(handleRequest);
