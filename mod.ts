@@ -1,11 +1,9 @@
 const GROQ_API_KEY = "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";
 const OPENROUTER_API_KEY = "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";
 const GEMINI_API_KEY = "AQ.Ab8RN6K-U5qy3SZcXIa1UrL2yabRuy1uYD5n8cbozrYMWvq3Yw";
-const GEMINI_MODEL = "gemini-3.7-flash";
-const GROQ_MODEL = "openai/gpt-oss-20b";
-const OPENROUTER_MODEL = "openrouter/free";
-
-const MAX_IMAGE_BASE64 = 16 * 1024 * 1024;
+const GROQ_API_KEY = "GROQ_API_KEY";
+const OPENROUTER_API_KEY = "OPENROUTER_API_KEY";
+const GEMINI_API_KEY = "GEMINI_API_KEY";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -14,7 +12,7 @@ const corsHeaders = {
     "Access-Control-Max-Age": "86400"
 };
 
-function json(data, status = 200) {
+function json(data: unknown, status = 200) {
     return new Response(JSON.stringify(data), {
         status,
         headers: {
@@ -24,193 +22,38 @@ function json(data, status = 200) {
     });
 }
 
-function errorMessage(error) {
-    if (error instanceof Error) {
-        return error.message;
-    }
-
-    return String(error);
+function extractText(data: any) {
+    return (
+        data?.choices?.[0]?.message?.content ??
+        data?.choices?.[0]?.text ??
+        null
+    );
 }
 
-
-/* =========================================================
-   هندسیار — پرامپت اصلی
-========================================================= */
-
-const HENDESYAR_SYSTEM_PROMPT = `
-تو «هندسیار» هستی؛ یک دستیار آموزشی تخصصی ریاضی و هندسه برای دانش‌آموزان پایه هشتم و نهم.
-
-هویت:
-- نام تو هندسیار است.
-- معلم و همراه آموزشی هستی، نه یک چت‌بات عمومی.
-- همیشه فارسی روان، محترمانه و قابل فهم صحبت کن.
-- پاسخ‌ها باید دقیق، آموزشی و مرحله‌به‌مرحله باشند.
-
-حوزه تخصصی:
-- هندسه پایه هشتم و نهم
-- مثلث‌ها
-- هم‌نهشتی مثلث‌ها
-- تشابه مثلث‌ها
-- زاویه‌ها
-- روابط بین زاویه‌ها
-- مثلث متساوی‌الساقین
-- مثلث متساوی‌الاضلاع
-- مثلث قائم‌الزاویه
-- قضیه فیثاغورس
-- محیط و مساحت شکل‌های هندسی
-- نسبت و تناسب در هندسه
-- طول ضلع‌ها و زاویه‌ها
-- استدلال و اثبات‌های ساده هندسی
-- حل مسائل ریاضی مرتبط با هندسه در سطح مدرسه
-
-قوانین علمی مهم:
-
-1. در هم‌نهشتی مثلث‌ها از معیارهای معتبر استفاده کن:
-   - ض‌ض‌ض (SSS)
-   - ض‌ز‌ض (SAS)
-   - ز‌ض‌ز (ASA)
-   - ز‌ز‌ض (AAS)
-   - معیارهای ویژه مثلث قائم‌الزاویه در صورت برقرار بودن شرایط لازم.
-
-2. سه زاویه برابر (AAA) معیار هم‌نهشتی نیست؛ AAA می‌تواند تشابه را مشخص کند.
-
-3. در تشابه مثلث‌ها از معیارهای مناسب مانند:
-   - ز‌ز (AA)
-   - ض‌ز‌ض (SAS)
-   - ض‌ض‌ض (SSS)
-   استفاده کن.
-
-4. همه مثلث‌های هم‌نهشت مشابه‌اند، اما همه مثلث‌های مشابه هم‌نهشت نیستند.
-
-5. در مثلث متساوی‌الساقین، زاویه‌های مقابل ضلع‌های مساوی برابرند.
-
-6. مجموع زاویه‌های داخلی هر مثلث برابر ۱۸۰ درجه است.
-
-7. در مثلث قائم‌الزاویه، قضیه فیثاغورس را فقط در صورت وجود زاویه ۹۰ درجه استفاده کن:
-   a² + b² = c²
-   که c وتر است.
-
-8. هرگز اطلاعاتی را که در سؤال وجود ندارد، به عنوان داده فرض نکن.
-
-9. اگر شکل یا متن سؤال ناقص است، صریحاً بگو چه اطلاعاتی کم است.
-
-10. نام‌گذاری نقاط را دقیق حفظ کن.
-مثلاً اگر سؤال درباره ABC است، نام نقاط را تغییر نده.
-
-روش حل:
-
-اگر سؤال مسئله‌ای بود:
-
-۱. داده‌های مسئله را مشخص کن.
-۲. خواسته مسئله را مشخص کن.
-۳. قضیه یا معیار مناسب را انتخاب کن.
-۴. مراحل استدلال را به ترتیب بنویس.
-۵. محاسبات را انجام بده.
-۶. جواب نهایی را مشخص کن.
-۷. در صورت امکان یک بررسی کوتاه انجام بده.
-
-فرمول‌ها را با LaTeX بنویس.
-
-مثلاً:
-\\[
-AB = AC
-\\]
-
-و:
-
-\\[
-\\angle B = \\angle C
-\\]
-
-سبک آموزشی:
-
-- اگر دانش‌آموز اشتباه کرد، با احترام اصلاحش کن.
-- فقط نگو «غلط است»؛ توضیح بده چرا.
-- اگر روش دانش‌آموز درست بود، آن را تأیید و کامل کن.
-- از توضیحات بی‌ربط خودداری کن.
-- پاسخ را بیش از حد طولانی نکن مگر اینکه مسئله پیچیده باشد.
-- برای سؤال ساده، پاسخ ساده بده.
-- برای مسئله سخت، مرحله‌به‌مرحله و دقیق‌تر توضیح بده.
-
-محدوده:
-
-اگر سؤال کاملاً خارج از ریاضی و هندسه بود، پاسخ بده:
-
-«من دستیار تخصصی هندسیار هستم و تمرکزم روی ریاضی و هندسه است. اگر سؤال هندسی یا ریاضی داری، با کمال میل کمکت می‌کنم.»
-
-اگر سؤال به ریاضی نزدیک بود ولی خارج از سطح هندسیار بود، تا جایی که به ریاضی مدرسه مرتبط است کمک کن.
-
-هرگز درباره سیاست، اخبار، سرگرمی، بازی، پزشکی، حقوق، برنامه‌نویسی عمومی یا موضوعات نامرتبط وارد گفت‌وگوی طولانی نشو.
-
-هدف اصلی:
-کمک کن دانش‌آموز خودش مفهوم را بفهمد، نه اینکه فقط جواب نهایی را ببیند.
-`;
-
-
-/* =========================================================
-   تبدیل پیام‌ها برای مدل‌ها
-========================================================= */
-
-function buildMessages(messages) {
-
-    const safeMessages = Array.isArray(messages)
-        ? messages.slice(-14)
-        : [];
-
-    return [
-        {
-            role: "system",
-            content: HENDESYAR_SYSTEM_PROMPT
-        },
-        ...safeMessages.map(message => ({
-            role:
-                message.role === "assistant"
-                    ? "assistant"
-                    : "user",
-
-            content:
-                typeof message.content === "string"
-                    ? message.content.slice(0, 12000)
-                    : ""
-        }))
-    ];
+function extractGeminiText(data: any) {
+    return (
+        data?.candidates?.[0]?.content?.parts
+            ?.map((x: any) => x.text || "")
+            .join("")
+            .trim() || null
+    );
 }
 
-
-/* =========================================================
-   GROQ
-========================================================= */
-
-async function callGroq(body) {
-
-    if (!GROQ_API_KEY) {
-        return {
-            ok: false,
-            status: 500,
-            content: null,
-            error: "GROQ_API_KEY تنظیم نشده است"
-        };
-    }
-
+async function callGroq(body: any) {
     try {
-
-        const messages = buildMessages(body.messages);
-
         const response = await fetch(
             "https://api.groq.com/openai/v1/chat/completions",
             {
                 method: "POST",
-
                 headers: {
                     "Authorization": `Bearer ${GROQ_API_KEY}`,
                     "Content-Type": "application/json"
                 },
-
                 body: JSON.stringify({
-                    model: GROQ_MODEL,
-                    messages,
-                    temperature: body.temperature ?? 0.25,
-                    max_tokens: body.max_tokens ?? 1800
+                    model: "openai/gpt-oss-20b",
+                    messages: body.messages,
+                    temperature: body.temperature ?? 0.3,
+                    max_tokens: body.max_tokens ?? 1200
                 })
             }
         );
@@ -222,85 +65,45 @@ async function callGroq(body) {
         try {
             data = JSON.parse(text);
         } catch {
-            data = {
-                raw: text
-            };
+            data = { raw: text };
         }
 
-        const content =
-            data?.choices?.[0]?.message?.content || null;
-
-        console.log(
-            `[GROQ] ${response.status}`
-        );
+        const content = extractText(data);
 
         return {
             ok: response.ok && !!content,
             status: response.status,
             content,
-            error:
-                response.ok && content
-                    ? null
-                    : data
+            error: response.ok && content ? null : data
         };
 
     } catch (error) {
-
-        console.error("[GROQ]", error);
-
         return {
             ok: false,
             status: 500,
             content: null,
-            error: errorMessage(error)
+            error: String(error)
         };
     }
 }
 
-
-/* =========================================================
-   OPENROUTER
-========================================================= */
-
-async function callOpenRouter(body) {
-
-    if (!OPENROUTER_API_KEY) {
-        return {
-            ok: false,
-            status: 500,
-            content: null,
-            error: "OPENROUTER_API_KEY تنظیم نشده است"
-        };
-    }
-
+async function callOpenRouter(body: any) {
     try {
-
-        const messages = buildMessages(body.messages);
-
         const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
             {
                 method: "POST",
-
                 headers: {
-                    "Authorization":
-                        `Bearer ${OPENROUTER_API_KEY}`,
-
-                    "Content-Type":
-                        "application/json",
-
-                    "HTTP-Referer":
-                        "https://hendesyar.ir",
-
-                    "X-Title":
-                        "Hendesyar"
+                    "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://hendesyar.ir",
+                    "X-Title": "Hendesyar"
                 },
-
                 body: JSON.stringify({
-                    model: OPENROUTER_MODEL,
-                    messages,
-                    temperature: body.temperature ?? 0.25,
-                    max_tokens: body.max_tokens ?? 1800
+                    model: "openrouter/free",
+                    messages: body.messages,
+                    temperature: body.temperature ?? 0.3,
+                    max_tokens: body.max_tokens ?? 1200
                 })
             }
         );
@@ -312,69 +115,45 @@ async function callOpenRouter(body) {
         try {
             data = JSON.parse(text);
         } catch {
-            data = {
-                raw: text
-            };
+            data = { raw: text };
         }
 
-        const content =
-            data?.choices?.[0]?.message?.content || null;
-
-        console.log(
-            `[OPENROUTER] ${response.status}`
-        );
+        const content = extractText(data);
 
         return {
             ok: response.ok && !!content,
             status: response.status,
             content,
-            error:
-                response.ok && content
-                    ? null
-                    : data
+            error: response.ok && content ? null : data
         };
 
     } catch (error) {
-
-        console.error(
-            "[OPENROUTER]",
-            error
-        );
-
         return {
             ok: false,
             status: 500,
             content: null,
-            error: errorMessage(error)
+            error: String(error)
         };
     }
 }
 
-
-/* =========================================================
-   تبدیل پیام‌ها برای Gemini
-========================================================= */
-
-function convertToGemini(messages) {
-
+function convertToGemini(messages: any[]) {
     return messages
-        .map(message => {
+        .map((message: any) => {
+            let role = "دانش‌آموز";
 
-            const role =
-                message.role === "assistant"
-                    ? "دستیار"
-                    : "دانش‌آموز";
+            if (message.role === "system") {
+                role = "دستور سیستم";
+            }
 
-            return `${role}:
-${message.content}`;
+            if (message.role === "assistant") {
+                role = "دستیار";
+            }
+
+            return `${role}:\n${message.content}`;
         })
         .join("\n\n");
 }
-
-
-/* =========================================================
-   GEMINI TEXT
-========================================================= */
 
 async function callGemini(body: any) {
     try {
@@ -384,7 +163,7 @@ async function callGemini(body: any) {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization": `Bearer ${GEMINI_API_KEY}`
+                    "x-goog-api-key": GEMINI_API_KEY
                 },
                 body: JSON.stringify({
                     contents: [
@@ -399,7 +178,121 @@ async function callGemini(body: any) {
                     ],
                     generationConfig: {
                         temperature: body.temperature ?? 0.3,
-                        maxOutputTokens: body.max_tokens ?? 800
+                        maxOutputTokens: body.max_tokens ?? 1200
+                    }
+                })
+            }
+        );
+
+        const text = await response.text();
+
+        let data;
+
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = { raw: text };
+        }
+
+        const content = extractGeminiText(data);
+
+        return {
+            ok: response.ok && !!content,
+            status: response.status,
+            content,
+            error: response.ok && content ? null : data
+        };
+
+    } catch (error) {
+        return {
+            ok: false,
+            status: 500,
+            content: null,
+            error: String(error)
+        };
+    }
+}
+
+async function callGeminiVision(body: any) {
+    try {
+        if (!body.imageData) {
+            return {
+                ok: false,
+                status: 400,
+                content: null,
+                error: "imageData ارسال نشده است"
+            };
+        }
+
+        const mimeType =
+            body.mimeType || "image/jpeg";
+
+        const question =
+            body.question ||
+            "این تصویر را بررسی کن و اگر مربوط به هندسه یا ریاضی است، آن را آموزشی و مرحله‌به‌مرحله تحلیل کن.";
+
+        const systemInstruction = `
+تو «دستیار هوشمند هندسیار» هستی.
+
+وظیفه تو آموزش هندسه و ریاضی به دانش‌آموزان پایه هشتم و نهم است.
+
+در تحلیل تصویر:
+
+- ابتدا تصویر را با دقت بررسی کن.
+- اگر تصویر شامل سؤال هندسه یا ریاضی است، متن سؤال را استخراج کن.
+- نام نقاط، ضلع‌ها، زاویه‌ها و اعداد را دقیق حفظ کن.
+- اگر شکل هندسی وجود دارد، روابط قابل مشاهده در شکل را توضیح بده.
+- از حدس زدن اطلاعاتی که در تصویر مشخص نیست خودداری کن.
+- داده‌های مسئله را جدا کن.
+- خواسته مسئله را مشخص کن.
+- سپس راه‌حل را مرحله‌به‌مرحله ارائه بده.
+- از فرمول‌های LaTeX استفاده کن.
+- اگر سؤال درباره هم‌نهشتی است، معیار مناسب مانند SSS، SAS، ASA، AAS یا حالت‌های مربوط به مثلث قائم‌الزاویه را بررسی کن.
+- AAA را معیار هم‌نهشتی معرفی نکن.
+- اگر سؤال درباره تشابه است، AA، SAS و SSS را بررسی کن.
+- اگر دانش‌آموز در متن سؤال اشتباه کرده باشد، محترمانه آن را اصلاح کن.
+- پاسخ برای دانش‌آموز قابل فهم و آموزشی باشد.
+- اگر تصویر تار، ناقص یا غیرقابل خواندن است، صریحاً اعلام کن.
+- اگر تصویر اصلاً مربوط به ریاضی و هندسه نیست، وارد موضوعات نامرتبط نشو.
+`;
+
+        const response = await fetch(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-goog-api-key": GEMINI_API_KEY
+                },
+                body: JSON.stringify({
+                    systemInstruction: {
+                        parts: [
+                            {
+                                text: systemInstruction
+                            }
+                        ]
+                    },
+
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [
+                                {
+                                    text: question
+                                },
+                                {
+                                    inline_data: {
+                                        mime_type: mimeType,
+                                        data: body.imageData
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+
+                    generationConfig: {
+                        temperature: 0.2,
+                        maxOutputTokens: 1800
                     }
                 })
             }
@@ -417,15 +310,8 @@ async function callGemini(body: any) {
             };
         }
 
-        console.log(
-            `[GEMINI] ${response.status}`,
-            JSON.stringify(data)
-        );
-
         const content =
-            data?.candidates?.[0]?.content?.parts
-                ?.map((x: any) => x.text || "")
-                .join("") || null;
+            extractGeminiText(data);
 
         return {
             ok: response.ok && !!content,
@@ -438,9 +324,6 @@ async function callGemini(body: any) {
         };
 
     } catch (error) {
-
-        console.error("[GEMINI]", error);
-
         return {
             ok: false,
             status: 500,
@@ -450,187 +333,85 @@ async function callGemini(body: any) {
     }
 }
 
-/* =========================================================
-   GEMINI VISION
-========================================================= */
-
-async function callGeminiVision(body) {
-
-    if (!GEMINI_API_KEY) {
-        return {
-            ok: false,
-            status: 500,
-            content: null,
-            error: "GEMINI_API_KEY تنظیم نشده است"
-        };
-    }
-
-    if (!body.imageData) {
-        return {
-            ok: false,
-            status: 400,
-            content: null,
-            error: "تصویر ارسال نشده است"
-        };
-    }
-
-    if (
-        typeof body.imageData !== "string" ||
-        body.imageData.length > MAX_IMAGE_BASE64
-    ) {
-        return {
-            ok: false,
-            status: 413,
-            content: null,
-            error: "حجم تصویر بیش از حد مجاز است"
-        };
-    }
-
-    const allowedTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/heic",
-        "image/heif"
-    ];
-
-    const mimeType =
-        allowedTypes.includes(body.mimeType)
-            ? body.mimeType
-            : "image/jpeg";
-
-    const question =
-        typeof body.question === "string"
-            ? body.question.slice(0, 6000)
-            : "";
-
-    const mode =
-        typeof body.mode === "string"
-            ? body.mode
-            : "normal";
-
-    let modeInstruction = "";
-
-    if (mode === "hint") {
-
-        modeInstruction = `
-دانش‌آموز فقط راهنمایی می‌خواهد.
-جواب نهایی را مستقیم اعلام نکن.
-یک یا چند راهنمای مرحله‌ای بده تا خودش به جواب برسد.
-`;
-
-    } else if (mode === "check") {
-
-        modeInstruction = `
-دانش‌آموز می‌خواهد جواب خودش بررسی شود.
-اول پاسخ او را بررسی کن.
-اگر درست است دلیلش را توضیح بده.
-اگر غلط است دقیقاً مرحله اشتباه را مشخص کن و روش اصلاح را نشان بده.
-`;
-
-    } else if (mode === "solve") {
-
-        modeInstruction = `
-دانش‌آموز درخواست حل کامل دارد.
-مسئله را از ابتدا تا انتها مرحله‌به‌مرحله حل کن.
-`;
-
-    } else {
-
-        modeInstruction = `
-به صورت آموزشی و متناسب با سؤال پاسخ بده.
-`;
-    }
-
-    const prompt = `
-تو بخش تحلیل تصویر «هندسیار» هستی.
-
-${HENDESYAR_SYSTEM_PROMPT}
-
-${modeInstruction}
-
-این تصویر را با دقت بررسی کن.
-
-وظایف:
-
-۱. ابتدا مشخص کن در تصویر چه چیزی دیده می‌شود.
-۲. متن سؤال را تا حد امکان دقیق بخوان.
-۳. نام نقاط، ضلع‌ها و زاویه‌ها را حفظ کن.
-۴. داده‌های مسئله را استخراج کن.
-۵. خواسته مسئله را مشخص کن.
-۶. اگر شکل هندسی وجود دارد، روابط قابل مشاهده را تحلیل کن.
-۷. اگر مسئله هم‌نهشتی است، معیار مناسب را بررسی کن.
-۸. اگر مسئله تشابه است، معیار مناسب را بررسی کن.
-۹. اگر مسئله زاویه‌ای است، از مجموع زاویه‌های مثلث و روابط زاویه‌ای مناسب استفاده کن.
-۱۰. اگر مثلث متساوی‌الساقین است، از برابری زاویه‌های مقابل ساق‌های مساوی استفاده کن.
-۱۱. اگر مثلث قائم‌الزاویه است، در صورت نیاز از فیثاغورس استفاده کن.
-۱۲. اگر اطلاعات تصویر کافی نیست، حدس نزن.
-
-${question
-    ? `درخواست دانش‌آموز:\n${question}`
-    : "درخواست دانش‌آموز: سؤال داخل تصویر را تحلیل کن."}
-
-پاسخ را به فارسی روان و آموزشی ارائه کن.
-فرمول‌ها را با LaTeX بنویس.
-`;
-
+async function callGroqVision(body: any) {
     try {
+        if (!body.imageData) {
+            return {
+                ok: false,
+                status: 400,
+                content: null,
+                error: "imageData ارسال نشده است"
+            };
+        }
+
+        const mimeType =
+            body.mimeType || "image/jpeg";
+
+        const question =
+            body.question ||
+            "این تصویر را از نظر هندسی و ریاضی تحلیل کن.";
+
+        const systemPrompt = `
+تو دستیار آموزشی هندسیار هستی.
+
+تمرکز تو فقط روی ریاضی و هندسه در سطح دانش‌آموزان پایه هشتم و نهم است.
+
+اگر تصویر سؤال هندسه دارد:
+1. متن سؤال را استخراج کن.
+2. داده‌ها را مشخص کن.
+3. خواسته را مشخص کن.
+4. شکل را تحلیل کن.
+5. راه‌حل را مرحله‌به‌مرحله بنویس.
+6. از LaTeX استفاده کن.
+7. نام نقاط و روابط را دقیق حفظ کن.
+8. در هم‌نهشتی معیار درست را انتخاب کن.
+9. AAA را هم‌نهشتی حساب نکن.
+10. در صورت ناکافی بودن اطلاعات، حدس نزن.
+
+اگر تصویر مربوط به موضوع دیگری است، فقط بگو که برای تحلیل مسائل هندسه و ریاضی طراحی شده‌ای.
+`;
 
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+            "https://api.groq.com/openai/v1/chat/completions",
             {
                 method: "POST",
-
                 headers: {
-                    "x-goog-api-key":
-                        GEMINI_API_KEY,
-
-                    "Content-Type":
-                        "application/json"
+                    "Authorization": `Bearer ${GROQ_API_KEY}`,
+                    "Content-Type": "application/json"
                 },
-
                 body: JSON.stringify({
+                    model: "qwen/qwen3.6-27b",
 
-                    contents: [
+                    messages: [
+                        {
+                            role: "system",
+                            content: systemPrompt
+                        },
                         {
                             role: "user",
-
-                            parts: [
-
+                            content: [
                                 {
-                                    text: prompt
+                                    type: "text",
+                                    text: question
                                 },
-
                                 {
-                                    inline_data: {
-                                        mime_type:
-                                            mimeType,
-
-                                        data:
-                                            body.imageData
+                                    type: "image_url",
+                                    image_url: {
+                                        url:
+                                            `data:${mimeType};base64,${body.imageData}`
                                     }
                                 }
-
                             ]
                         }
                     ],
 
-                    generationConfig: {
-
-                        maxOutputTokens:
-                            2200,
-
-                        thinkingConfig: {
-                            thinkingLevel: "medium"
-                        }
-                    }
-
+                    temperature: 0.2,
+                    max_tokens: 1800
                 })
             }
         );
 
-        const text =
-            await response.text();
+        const text = await response.text();
 
         let data;
 
@@ -642,28 +423,12 @@ ${question
             };
         }
 
-        console.log(
-            `[GEMINI VISION] ${response.status}`
-        );
-
-        const content =
-            data?.candidates?.[0]
-                ?.content
-                ?.parts
-                ?.map(part => part.text || "")
-                .join("") || null;
+        const content = extractText(data);
 
         return {
-
-            ok:
-                response.ok &&
-                !!content,
-
-            status:
-                response.status,
-
+            ok: response.ok && !!content,
+            status: response.status,
             content,
-
             error:
                 response.ok && content
                     ? null
@@ -671,296 +436,196 @@ ${question
         };
 
     } catch (error) {
-
-        console.error(
-            "[GEMINI VISION]",
-            error
-        );
-
         return {
-
             ok: false,
-
             status: 500,
-
             content: null,
-
-            error:
-                errorMessage(error)
+            error: String(error)
         };
     }
 }
 
-
-/* =========================================================
-   CHAT
-========================================================= */
-
-async function handleChat(request) {
-
+async function handleChat(request: Request) {
     let body;
 
     try {
         body = await request.json();
     } catch {
-
-        return json(
-            {
-                success: false,
-                error: "JSON نامعتبر است"
-            },
-            400
-        );
+        return json({
+            success: false,
+            error: "JSON نامعتبر است"
+        }, 400);
     }
 
     if (!Array.isArray(body.messages)) {
-
-        return json(
-            {
-                success: false,
-                error: "messages ارسال نشده است"
-            },
-            400
-        );
+        return json({
+            success: false,
+            error: "messages ارسال نشده است"
+        }, 400);
     }
 
-    const results = {};
-
-    console.log("========== CHAT ==========");
-
-    results.groq =
+    const groq =
         await callGroq(body);
 
-    if (
-        results.groq.ok &&
-        results.groq.content
-    ) {
-
+    if (groq.ok) {
         return json({
             success: true,
             provider: "groq",
-            content: results.groq.content
+            content: groq.content
         });
     }
 
-    results.openrouter =
+    const openrouter =
         await callOpenRouter(body);
 
-    if (
-        results.openrouter.ok &&
-        results.openrouter.content
-    ) {
-
+    if (openrouter.ok) {
         return json({
             success: true,
             provider: "openrouter",
-            content:
-                results.openrouter.content
+            content: openrouter.content
         });
     }
 
-    results.gemini =
+    const gemini =
         await callGemini(body);
 
-    if (
-        results.gemini.ok &&
-        results.gemini.content
-    ) {
-
+    if (gemini.ok) {
         return json({
             success: true,
             provider: "gemini",
-            content:
-                results.gemini.content
+            content: gemini.content
         });
     }
 
-    return json(
-        {
-            success: false,
-            error:
-                "تمام سرویس‌های هوش مصنوعی در دسترس نیستند",
-            results,
-            timestamp:
-                new Date().toISOString()
-        },
-        502
-    );
+    return json({
+        success: false,
+        message: "تمام سرویس‌های متنی ناموفق بودند",
+        results: {
+            groq,
+            openrouter,
+            gemini
+        }
+    }, 502);
 }
 
-
-/* =========================================================
-   VISION
-========================================================= */
-
-async function handleVision(request) {
-
+async function handleVision(request: Request) {
     let body;
 
     try {
         body = await request.json();
     } catch {
-
-        return json(
-            {
-                success: false,
-                error: "JSON نامعتبر است"
-            },
-            400
-        );
+        return json({
+            success: false,
+            error: "JSON نامعتبر است"
+        }, 400);
     }
 
-    const result =
+    if (!body.imageData) {
+        return json({
+            success: false,
+            error: "imageData ارسال نشده است"
+        }, 400);
+    }
+
+    const gemini =
         await callGeminiVision(body);
 
-    if (result.ok) {
-
+    if (gemini.ok) {
         return json({
             success: true,
             provider: "gemini",
-            content: result.content
+            content: gemini.content
         });
     }
 
-    return json(
-        {
-            success: false,
-            provider: "gemini",
-            error: result.error,
-            status: result.status
+    const groq =
+        await callGroqVision(body);
+
+    if (groq.ok) {
+        return json({
+            success: true,
+            provider: "groq-vision",
+            content: groq.content
+        });
+    }
+
+    return json({
+        success: false,
+        provider: "vision",
+        error: {
+            gemini: gemini.error,
+            groq: groq.error
         },
-        result.status >= 400
-            ? result.status
-            : 502
-    );
+        status: gemini.status || groq.status
+    }, 502);
 }
 
-
-/* =========================================================
-   TEST
-========================================================= */
-
-async function handleTest(request) {
-
+async function handleTest(request: Request) {
     if (request.method !== "POST") {
-
-        return json(
-            {
-                success: false,
-                error:
-                    "روش درخواست باید POST باشد"
-            },
-            405
-        );
+        return json({
+            success: false,
+            error: "روش درخواست باید POST باشد"
+        }, 405);
     }
 
     const body = {
-
         messages: [
-
             {
                 role: "system",
-                content:
-                    HENDESYAR_SYSTEM_PROMPT
+                content: "تو یک دستیار فارسی هستی."
             },
-
             {
                 role: "user",
-                content:
-                    "فقط بنویس: تست موفق بود"
+                content: "فقط بنویس: تست موفق بود"
             }
-
         ],
-
         temperature: 0.2,
         max_tokens: 100
     };
 
-    console.log(
-        "================================"
-    );
-
-    console.log(
-        "🧪 HENDESYAR PROVIDER TEST"
-    );
-
-    console.log(
-        "================================"
-    );
-
-    const results = {};
-
-    results.groq =
+    const groq =
         await callGroq(body);
 
-    results.openrouter =
+    const openrouter =
         await callOpenRouter(body);
 
-    results.gemini =
+    const gemini =
         await callGemini(body);
 
     return json({
-
         success:
-            results.groq.ok ||
-            results.openrouter.ok ||
-            results.gemini.ok,
+            groq.ok ||
+            openrouter.ok ||
+            gemini.ok,
 
-        results,
+        results: {
+            groq,
+            openrouter,
+            gemini
+        },
 
         timestamp:
             new Date().toISOString()
     });
 }
-
-
-/* =========================================================
-   HEALTH
-========================================================= */
 
 async function handleHealth() {
-
     return json({
-
         success: true,
-
         status: "ok",
-
-        service:
-            "hendesyar-ai",
-
-        model: {
-            groq: GROQ_MODEL,
-            openrouter: OPENROUTER_MODEL,
-            gemini: GEMINI_MODEL
-        },
-
+        service: "hendesyar-ai",
         providers: {
-
-            groq:
-                !!GROQ_API_KEY,
-
-            openrouter:
-                !!OPENROUTER_API_KEY,
-
-            gemini:
-                !!GEMINI_API_KEY
+            groq: !!GROQ_API_KEY,
+            openrouter: !!OPENROUTER_API_KEY,
+            gemini: !!GEMINI_API_KEY
         },
-
         timestamp:
             new Date().toISOString()
     });
 }
 
-
-/* =========================================================
-   SERVER
-========================================================= */
-
-async function handleRequest(request) {
-
+async function handleRequest(request: Request) {
     if (request.method === "OPTIONS") {
-
         return new Response(null, {
             status: 204,
             headers: corsHeaders
@@ -971,92 +636,47 @@ async function handleRequest(request) {
         new URL(request.url);
 
     try {
-
-        if (
-            url.pathname === "/health"
-        ) {
-
+        if (url.pathname === "/health") {
             return handleHealth();
         }
 
-
-        if (
-            url.pathname === "/api/test"
-        ) {
-
+        if (url.pathname === "/api/test") {
             return handleTest(request);
         }
 
-
         if (
-            url.pathname === "/api/chat"
+            url.pathname === "/api/chat" &&
+            request.method === "POST"
         ) {
-
-            if (
-                request.method !== "POST"
-            ) {
-
-                return json(
-                    {
-                        success: false,
-                        error:
-                            "روش درخواست باید POST باشد"
-                    },
-                    405
-                );
-            }
-
             return handleChat(request);
         }
 
-
         if (
-            url.pathname === "/api/vision"
+            url.pathname === "/api/vision" &&
+            request.method === "POST"
         ) {
-
-            if (
-                request.method !== "POST"
-            ) {
-
-                return json(
-                    {
-                        success: false,
-                        error:
-                            "روش درخواست باید POST باشد"
-                    },
-                    405
-                );
-            }
-
             return handleVision(request);
         }
 
-
-        return json(
-            {
-                success: false,
-                error: "مسیر نامعتبر"
-            },
-            404
-        );
+        return json({
+            success: false,
+            error: "مسیر نامعتبر"
+        }, 404);
 
     } catch (error) {
-
         console.error(
             "SERVER ERROR:",
             error
         );
 
-        return json(
-            {
-                success: false,
-                error:
-                    errorMessage(error)
-            },
-            500
-        );
+        return json({
+            success: false,
+            error:
+                error instanceof Error
+                    ? error.message
+                    : String(error)
+        }, 500);
     }
 }
-
 
 Deno.serve(handleRequest);
