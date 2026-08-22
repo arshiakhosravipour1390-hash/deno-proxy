@@ -1,4 +1,4 @@
-const GROQ_API_KEY = "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";
+const GROQ_API_KEY = "gsk_FS8EBS8GtrTDAXZTuKmdjWGdyb3FYrycic7pDrT6h3rDWdyWCDf81";
 const OPENROUTER_API_KEY = "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";
 const GEMINI_API_KEY = "AQ.Ab8RN6K-U5qy3SZcXIa1UrL2yabRuy1uYD5n8cbozrYMWvq3Yw";
 
@@ -19,224 +19,159 @@ function json(data: unknown, status = 200) {
     });
 }
 
-async function readResponse(response: Response) {
-    const raw = await response.text();
+async function safeJson(response: Response) {
+    const text = await response.text();
 
-    if (!raw) {
-        return {
-            raw: "",
-            data: null
-        };
+    if (!text) {
+        return {};
     }
 
     try {
-        return {
-            raw,
-            data: JSON.parse(raw)
-        };
+        return JSON.parse(text);
     } catch {
         return {
-            raw,
-            data: {
-                raw
-            }
+            raw: text
         };
     }
 }
 
+/* =========================
+   GROQ
+========================= */
+
 async function callGroq(body: any) {
-
     try {
-
-        const payload = {
-            model: "llama-3.3-70b-versatile",
-            messages: Array.isArray(body.messages)
-                ? body.messages
-                : [],
-            temperature:
-                typeof body.temperature === "number"
-                    ? body.temperature
-                    : 0.25,
-            max_tokens:
-                typeof body.max_tokens === "number"
-                    ? body.max_tokens
-                    : 1800
-        };
-
         const response = await fetch(
             "https://api.groq.com/openai/v1/chat/completions",
             {
                 method: "POST",
-
                 headers: {
                     "Authorization": `Bearer ${GROQ_API_KEY}`,
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
+                    "Content-Type": "application/json"
                 },
-
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    model: "llama-3.3-70b-versatile",
+                    messages: body.messages,
+                    temperature: body.temperature ?? 0.25,
+                    max_tokens: body.max_tokens ?? 1800
+                })
             }
         );
 
-        const result = await readResponse(response);
+        const data = await safeJson(response);
 
         return {
             ok: response.ok,
             status: response.status,
-            data: result.data,
-            raw: result.raw
+            data
         };
 
     } catch (error) {
-
         return {
             ok: false,
             status: 0,
             data: {
-                error:
-                    error instanceof Error
-                        ? error.message
-                        : String(error)
-            },
-            raw: ""
+                error: error instanceof Error
+                    ? error.message
+                    : String(error)
+            }
         };
     }
 }
 
+/* =========================
+   OPENROUTER
+========================= */
+
 async function callOpenRouter(body: any) {
-
     try {
-
-        const payload = {
-            model: "meta-llama/llama-3.3-70b-instruct:free",
-
-            messages: Array.isArray(body.messages)
-                ? body.messages
-                : [],
-
-            temperature:
-                typeof body.temperature === "number"
-                    ? body.temperature
-                    : 0.25,
-
-            max_tokens:
-                typeof body.max_tokens === "number"
-                    ? body.max_tokens
-                    : 1800
-        };
-
         const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
             {
                 method: "POST",
-
                 headers: {
                     "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
-                    "Accept": "application/json",
                     "HTTP-Referer": "https://hendesyar.ir",
                     "X-Title": "Hendesyar"
                 },
-
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    model: "meta-llama/llama-3.3-70b-instruct:free",
+                    messages: body.messages,
+                    temperature: body.temperature ?? 0.25,
+                    max_tokens: body.max_tokens ?? 1800
+                })
             }
         );
 
-        const result = await readResponse(response);
+        const data = await safeJson(response);
 
         return {
             ok: response.ok,
             status: response.status,
-            data: result.data,
-            raw: result.raw
+            data
         };
 
     } catch (error) {
-
         return {
             ok: false,
             status: 0,
             data: {
-                error:
-                    error instanceof Error
-                        ? error.message
-                        : String(error)
-            },
-            raw: ""
+                error: error instanceof Error
+                    ? error.message
+                    : String(error)
+            }
         };
     }
 }
+
+/* =========================
+   GEMINI
+========================= */
 
 async function callGemini(body: any) {
-
     try {
+        const url =
+            "https://generativelanguage.googleapis.com/v1beta/models/" +
+            "gemini-2.0-flash:generateContent?key=" +
+            encodeURIComponent(GEMINI_API_KEY);
 
-        const response = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" +
-            encodeURIComponent(GEMINI_API_KEY),
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(body)
+        });
 
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json"
-                },
-
-                body: JSON.stringify(body)
-            }
-        );
-
-        const result = await readResponse(response);
+        const data = await safeJson(response);
 
         return {
             ok: response.ok,
             status: response.status,
-            data: result.data,
-            raw: result.raw
+            data
         };
 
     } catch (error) {
-
         return {
             ok: false,
             status: 0,
             data: {
-                error:
-                    error instanceof Error
-                        ? error.message
-                        : String(error)
-            },
-            raw: ""
+                error: error instanceof Error
+                    ? error.message
+                    : String(error)
+            }
         };
     }
 }
 
-function extractOpenAIContent(data: any) {
+/* =========================
+   MAIN HANDLER
+========================= */
 
-    return data?.choices?.[0]?.message?.content || null;
-}
-
-function extractGeminiContent(data: any) {
-
-    const parts =
-        data?.candidates?.[0]?.content?.parts;
-
-    if (!Array.isArray(parts)) {
-        return null;
-    }
-
-    return parts
-        .map((part: any) => part?.text || "")
-        .filter(Boolean)
-        .join("\n")
-        .trim() || null;
-}
-
-async function handleRequest(request: Request) {
+async function handleRequest(request: Request): Promise<Response> {
 
     if (request.method === "OPTIONS") {
-
         return new Response(null, {
             status: 204,
             headers: corsHeaders
@@ -252,17 +187,15 @@ async function handleRequest(request: Request) {
         ========================= */
 
         if (url.pathname === "/health") {
-
             return json({
+                success: true,
                 status: "ok",
                 service: "hendesyar-ai",
-
                 providers: {
-                    groq: !!GROQ_API_KEY,
-                    openrouter: !!OPENROUTER_API_KEY,
-                    gemini: !!GEMINI_API_KEY
+                    groq: Boolean(GROQ_API_KEY),
+                    openrouter: Boolean(OPENROUTER_API_KEY),
+                    gemini: Boolean(GEMINI_API_KEY)
                 },
-
                 timestamp: new Date().toISOString()
             });
         }
@@ -271,41 +204,34 @@ async function handleRequest(request: Request) {
            CHAT
         ========================= */
 
-        if (
-            url.pathname === "/api/chat" &&
-            request.method === "POST"
-        ) {
+        if (url.pathname === "/api/chat") {
+
+            if (request.method !== "POST") {
+                return json({
+                    success: false,
+                    error: "روش درخواست باید POST باشد"
+                }, 405);
+            }
 
             let body: any;
 
             try {
-
                 body = await request.json();
-
             } catch {
-
                 return json({
                     success: false,
-                    error: "بدنه درخواست JSON معتبر نیست."
+                    error: "JSON نامعتبر است"
                 }, 400);
             }
 
             if (
                 !body ||
-                !Array.isArray(body.messages)
+                !Array.isArray(body.messages) ||
+                body.messages.length === 0
             ) {
-
                 return json({
                     success: false,
-                    error: "messages باید یک آرایه باشد."
-                }, 400);
-            }
-
-            if (body.messages.length === 0) {
-
-                return json({
-                    success: false,
-                    error: "حداقل یک پیام لازم است."
+                    error: "messages ارسال نشده یا نامعتبر است"
                 }, 400);
             }
 
@@ -315,86 +241,58 @@ async function handleRequest(request: Request) {
 
             const groq = await callGroq(body);
 
-            const groqContent =
-                extractOpenAIContent(groq.data);
-
             if (
                 groq.ok &&
-                groqContent
+                groq.data?.choices?.[0]?.message?.content
             ) {
-
                 return json({
                     success: true,
                     provider: "groq",
-                    content: groqContent
+                    content: groq.data.choices[0].message.content
                 });
             }
 
             /*
-             * اگر Groq شکست خورد:
-             * OpenRouter
+             * اگر Groq شکست خورد → OpenRouter
              */
 
-            const openrouter =
-                await callOpenRouter(body);
-
-            const openrouterContent =
-                extractOpenAIContent(
-                    openrouter.data
-                );
+            const openrouter = await callOpenRouter(body);
 
             if (
                 openrouter.ok &&
-                openrouterContent
+                openrouter.data?.choices?.[0]?.message?.content
             ) {
-
                 return json({
                     success: true,
                     provider: "openrouter",
-                    content: openrouterContent
+                    content:
+                        openrouter.data.choices[0].message.content
                 });
             }
 
             /*
-             * هیچ Provider موفق نشد
+             * هیچ Providerای جواب نداده
              */
-
-            console.error(
-                "GROQ FAILED",
-                JSON.stringify({
-                    status: groq.status,
-                    data: groq.data
-                })
-            );
-
-            console.error(
-                "OPENROUTER FAILED",
-                JSON.stringify({
-                    status: openrouter.status,
-                    data: openrouter.data
-                })
-            );
 
             return json({
                 success: false,
-
                 provider: "none",
 
                 error: {
-                    message:
-                        "تمام سرویس‌های متنی ناموفق بودند.",
+                    message: "تمام سرویس‌های متنی شکست خوردند",
 
                     groq: {
                         status: groq.status,
-                        error: groq.data
+                        error: groq.data?.error || groq.data
                     },
 
                     openrouter: {
                         status: openrouter.status,
-                        error: openrouter.data
+                        error:
+                            openrouter.data?.error ||
+                            openrouter.data
                     }
                 }
-
             }, 502);
         }
 
@@ -402,79 +300,45 @@ async function handleRequest(request: Request) {
            VISION
         ========================= */
 
-        if (
-            url.pathname === "/api/vision" &&
-            request.method === "POST"
-        ) {
+        if (url.pathname === "/api/vision") {
+
+            if (request.method !== "POST") {
+                return json({
+                    success: false,
+                    error: "روش درخواست باید POST باشد"
+                }, 405);
+            }
 
             let body: any;
 
             try {
-
                 body = await request.json();
-
             } catch {
-
                 return json({
                     success: false,
-                    error: "بدنه درخواست JSON معتبر نیست."
+                    error: "JSON نامعتبر است"
                 }, 400);
             }
 
             const mimeType =
-                body?.mimeType ||
-                "image/jpeg";
+                body.mimeType || "image/jpeg";
 
             const imageData =
-                body?.imageData;
+                body.imageData;
 
             const question =
-                body?.question || "";
-
-            const mode =
-                body?.mode || "normal";
+                body.question || "";
 
             if (!imageData) {
-
                 return json({
                     success: false,
-                    error: "تصویر دریافت نشد."
+                    error: "تصویر دریافت نشد"
                 }, 400);
-            }
-
-            let modeInstruction = "";
-
-            if (mode === "solve") {
-
-                modeInstruction = `
-حالت حل مسئله فعال است.
-مسئله را کامل و مرحله‌به‌مرحله حل کن.
-داده‌ها، خواسته و راه‌حل را جدا کن.
-`;
-            }
-
-            if (mode === "hint") {
-
-                modeInstruction = `
-حالت راهنمایی فعال است.
-جواب نهایی را مستقیماً نگو.
-فقط راهنمایی مرحله‌ای بده تا دانش‌آموز خودش حل کند.
-`;
-            }
-
-            if (mode === "check") {
-
-                modeInstruction = `
-حالت بررسی جواب فعال است.
-جواب دانش‌آموز را بررسی کن.
-اگر اشتباه است دقیقاً مرحله اشتباه را مشخص کن.
-`;
             }
 
             const prompt = `
 تو دستیار هوشمند «هندسیار» هستی؛
-یک معلم ریاضی فارسی‌زبان برای دانش‌آموزان
-پایه هشتم و نهم.
+یک معلم ریاضی فارسی‌زبان برای دانش‌آموزان پایه هشتم و نهم.
 
 تمرکز اصلی:
 
@@ -484,126 +348,94 @@ async function handleRequest(request: Request) {
 - تشابه
 - زاویه‌ها
 - قضایای هندسی
-- حل مسائل هندسی
+- حل مرحله‌به‌مرحله مسائل
 
 این تصویر یک سؤال یا شکل هندسی است.
 
 ${question
     ? `توضیح دانش‌آموز:
 ${question}`
-    : ""}
-
-${modeInstruction}
+    : ""
+}
 
 دستورها:
 
-1. ابتدا متن سؤال را با دقت بخوان.
-2. اگر شکل دارد، نقاط و ضلع‌ها و زاویه‌ها را بررسی کن.
-3. علامت‌های مساوی و داده‌های روی شکل را بررسی کن.
-4. اگر اطلاعات کافی نیست، حدس نزن.
-5. راه‌حل را مرحله‌به‌مرحله توضیح بده.
-6. فرمول‌ها را با LaTeX بنویس.
-7. فارسی روان و مناسب پایه هشتم و نهم استفاده کن.
-8. در پایان یک سؤال کوتاه برای مشارکت دانش‌آموز مطرح کن.
-
-اگر متن سؤال داخل تصویر ناخوانا است،
-صادقانه اعلام کن.
+1. ابتدا متن سؤال و اطلاعات شکل را با دقت بخوان.
+2. نقاط، ضلع‌ها، زاویه‌ها و علامت‌های شکل را بررسی کن.
+3. اگر اطلاعات کافی نیست، حدس نزن.
+4. راه‌حل را مرحله‌به‌مرحله توضیح بده.
+5. فرمول‌های ریاضی را با LaTeX بنویس.
+6. پاسخ را فارسی و مناسب پایه هشتم و نهم بنویس.
+7. در پایان یک سؤال کوتاه برای مشارکت دانش‌آموز مطرح کن.
 `;
 
-            const gemini =
-                await callGemini({
-
-                    contents: [
-                        {
-                            role: "user",
-
-                            parts: [
-                                {
-                                    text: prompt
-                                },
-
-                                {
-                                    inline_data: {
-                                        mime_type:
-                                            mimeType,
-                                        data:
-                                            imageData
-                                    }
+            const gemini = await callGemini({
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: prompt
+                            },
+                            {
+                                inline_data: {
+                                    mime_type: mimeType,
+                                    data: imageData
                                 }
-                            ]
-                        }
-                    ],
-
-                    generationConfig: {
-                        temperature: 0.25,
-                        maxOutputTokens: 1800
+                            }
+                        ]
                     }
-                });
+                ],
 
-            const geminiContent =
-                extractGeminiContent(
-                    gemini.data
-                );
+                generationConfig: {
+                    temperature: 0.25,
+                    maxOutputTokens: 1800
+                }
+            });
 
             if (
                 gemini.ok &&
-                geminiContent
+                gemini.data?.candidates?.[0]?.content?.parts?.[0]?.text
             ) {
-
                 return json({
                     success: true,
                     provider: "gemini",
-                    content: geminiContent
+                    content:
+                        gemini.data.candidates[0]
+                            .content.parts[0].text
                 });
             }
 
-            console.error(
-                "GEMINI FAILED",
-                JSON.stringify({
-                    status: gemini.status,
-                    data: gemini.data
-                })
-            );
-
             return json({
-
                 success: false,
-
                 provider: "gemini",
 
                 error: {
                     status: gemini.status,
-                    data: gemini.data
+                    details:
+                        gemini.data?.error ||
+                        gemini.data
                 }
-
             }, 502);
         }
 
         /* =========================
-           NOT FOUND
+           404
         ========================= */
 
         return json({
             success: false,
-            error: "مسیر نامعتبر است."
+            error: "مسیر نامعتبر",
+            path: url.pathname
         }, 404);
 
     } catch (error) {
 
-        console.error(
-            "SERVER ERROR:",
-            error
-        );
-
         return json({
-
             success: false,
-
             error:
                 error instanceof Error
                     ? error.message
                     : String(error)
-
         }, 500);
     }
 }
