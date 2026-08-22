@@ -1,6 +1,6 @@
-const GROQ_API_KEY = Deno.env.get("AQ.Ab8RN6K-U5qy3SZcXIa1UrL2yabRuy1uYD5n8cbozrYMWvq3Yw");
-const OPENROUTER_API_KEY = Deno.env.get("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");
-const GEMINI_API_KEY = Deno.env.get("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");
+const GROQ_API_KEY = "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";
+const OPENROUTER_API_KEY = "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";
+const GEMINI_API_KEY = "AQ.Ab8RN6K-U5qy3SZcXIa1UrL2yabRuy1uYD5n8cbozrYMWvq3Yw";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -30,7 +30,7 @@ async function callGroq(body) {
             },
             body: JSON.stringify({
                 ...body,
-                model: "openai/gpt-oss-120b"
+                model: "llama-3.3-70b-versatile"
             })
         }
     );
@@ -57,7 +57,7 @@ async function callOpenRouter(body) {
             },
             body: JSON.stringify({
                 ...body,
-                model: "openrouter/free"
+                model: "meta-llama/llama-3.3-70b-instruct:free"
             })
         }
     );
@@ -73,7 +73,7 @@ async function callOpenRouter(body) {
 
 async function callGemini(body) {
     const response = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=" +
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" +
         encodeURIComponent(GEMINI_API_KEY),
         {
             method: "POST",
