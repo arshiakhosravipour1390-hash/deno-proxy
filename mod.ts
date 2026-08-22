@@ -23,12 +23,6 @@ const OPENROUTER_API_KEY =
 // ============================================================
 // CONFIG
 // ============================================================
-
-const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") || "";
-
-const OPENROUTER_API_KEY =
-  Deno.env.get("OPENROUTER_API_KEY") || "";
-
 const GROQ_MODEL =
   Deno.env.get("GROQ_MODEL") ||
   "llama-3.3-70b-versatile";
